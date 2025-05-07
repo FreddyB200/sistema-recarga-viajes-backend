@@ -5,16 +5,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DB = os.getenv("POSTGRES_DB")
-USER = os.getenv("POSTGRES_USER")
-PASSWORD = os.getenv("POSTGRES_PASSWORD")
-HOST = "db"
-PORT = 5532
+DB = os.getenv("DB_NAME")
+USER = os.getenv("DB_USER")
+PASSWORD = os.getenv("DB_PASSWORD")
+HOST = os.getenv("DB_HOST", "localhost")
+PORT = os.getenv("DB_PORT", 5432)
 
-# SQLALCHEMY_DATABASE_URL = f"postgresql://{USER}:{PASSWORD}@{HOST}:{PORT}/{DB}"
+SQLALCHEMY_DATABASE_URL = f"postgresql://{USER}:{PASSWORD}@{HOST}:{PORT}/{DB}"
 
-
-SQLALCHEMY_DATABASE_URL = "postgresql://admin:Pass%21__2025%21@149.130.169.172:33333/sistema_recargas_viajes"
 
 # CONNECTION ENGINE
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
