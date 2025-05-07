@@ -32,7 +32,7 @@ def read_users(db: Session = Depends(get_db)):
 @app.get("/localidades/")
 def read_localidades(db: Session = Depends(get_db)):
     try:
-        result = db.execute(text("select count(*) from localidades where nombre = 'Usme'")).mappings().all()
+        result = db.execute(text("select * from localidades where nombre = 'Usme'")).mappings().all()
         localidades = [dict(row) for row in result]
 
         return {"status": "success", "data": localidades}
