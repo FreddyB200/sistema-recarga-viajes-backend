@@ -34,10 +34,10 @@ def get_users_count(db: Session = Depends(get_db)):
 def get_active_users_count(db: Session = Depends(get_db)):
     # Asumiendo que TARJETAS.estado = 'activa' para tarjetas activas. ¡Verifica este valor!
     query = text("""
-        SELECT COUNT(DISTINCT u.id) AS active_users_count
+        SELECT COUNT(DISTINCT u.usuario_id) AS active_users_count
         FROM usuarios u
-        JOIN tarjetas t ON u.id = t.usuario_id
-        WHERE t.estado = 'activa'; 
+        JOIN tarjetas t ON u.usuario_id = t.usuario_id
+        WHERE t.estado = 'Activa'; 
     """)
     try:
         result = db.execute(query).scalar_one_or_none()
@@ -48,7 +48,7 @@ def get_active_users_count(db: Session = Depends(get_db)):
 @app.get("/users/latest")
 def get_latest_user(db: Session = Depends(get_db)):
     query = text("""
-        SELECT id, nombre, apellido
+        SELECT usuario_id, nombre, apellido
         FROM usuarios
         ORDER BY fecha_registro DESC
         LIMIT 1;
@@ -57,7 +57,7 @@ def get_latest_user(db: Session = Depends(get_db)):
         result = db.execute(query).mappings().first()
         if result:
             full_name = f"{result['nombre']} {result['apellido']}"
-            return {"latest_user": {"id": result['id'], "full_name": full_name}}
+            return {"latest_user": {"usuario_id": result['usuario_id'], "full_name": full_name}}
         else:
             return Response(status_code=204) # No Content
     except Exception as e:
