@@ -84,4 +84,26 @@ def get_total_revenue(db: Session = Depends(get_db)):
         total_revenue = result if result is not None else Decimal('0.00')
         return {"total_revenue": float(total_revenue), "currency": "COP"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"error": {"code": "CALCULATION_ERROR", "message": f"Error al calcular los ingresos totales: {str(e)}"}})
+        raise HTTPException(status_code=500, detail={"error": {"code": "CALCULATION_ERROR", "message": f"Error at calculating total incomes: {str(e)}"}})
+    
+
+@app.get("/trips/total")
+def get_total_trips(db: Session = Depends(get_db)):
+    query = text("select count(*) from viajes")
+    try: 
+        result = db.exectute(query).scalar_one_or_none()
+
+    except Exception as e:
+                raise HTTPException(status_code=500, detail={"error": {"code": "CALCULATION_ERROR", "message": f"Error at calculating total trips: {str(e)}"}})
+
+
+
+
+
+
+
+
+
+
+    
+    
