@@ -85,16 +85,67 @@ def get_total_revenue(db: Session = Depends(get_db)):
         return {"total_revenue": float(total_revenue), "currency": "COP"}
     except Exception as e:
         raise HTTPException(status_code=500, detail={"error": {"code": "CALCULATION_ERROR", "message": f"Error at calculating total incomes: {str(e)}"}})
-    
+        
 
-@app.get("/trips/total")
-def get_total_trips(db: Session = Depends(get_db)):
-    query = text("select count(*) from viajes")
-    try: 
-        result = db.exectute(query).scalar_one_or_none()
+@app.get("/finance/revenue/localities")
+def get_total_revenue(db: Session = Depends(get_db)):
+    # Se requiere JOIN con la tabla TARIFAS para obtener el 'valor' (costo) del viaje.
+    query = text("""SELECT
+        l.nombre AS localidad,
 
+        SUM(t.valor) AS total_recaudado
+
+        FROM VIAJES v
+        JOIN TARIFAS t ON v.tarifa_id = t.tarifa_id
+        JOIN ESTACIONES e ON v.estacion_abordaje_id = e.estacion_id
+        JOIN LOCALIDADES l ON e.localidad_id = l.localidad_id
+        GROUP BY l.nombre 
+        ORDER BY total_recaudado DESC;
+""")
+    try:
+        result = db.execute(query).fetchall()
+
+        response = [
+            {"localidad": row[0], "total_recaudado": float(row[1])}
+            for row in result
+        ]
+
+        return {"data": response, "currency": "COP"}
+        
     except Exception as e:
-                raise HTTPException(status_code=500, detail={"error": {"code": "CALCULATION_ERROR", "message": f"Error at calculating total trips: {str(e)}"}})
+        raise HTTPException(
+            status_code=500, #http
+            detail={
+                "error": {
+                    "code": "CALCULATION_ERROR",
+                    "message": f"Error at calculating total incomes per localitie: {str(e)}"
+                    }
+                }
+            )
+
+
+
+#fastapi espera solo 1 fila 
+#select .... group by -> devuelve varias filas -> 1 por localidad
+# error de mierda
+# {
+#   "detail": {
+#     "error": {
+#       "code": "CALCULATION_ERROR",
+#       "message": "Error at calculating total incomes: Multiple rows were found when one or none was required"
+#     }
+#   }
+# # }
+
+#ERROR DE MIERDA 2
+# {
+#   "detail": {
+#     "error": {
+#       "code": "CALCULATION_ERROR",
+#       "message": "Error at calculating total incomes: float() argument must be a string or a real number, not 'list'"
+#     }
+#   }
+# }
 
 
 
