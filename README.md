@@ -1,17 +1,70 @@
-# Sistema de Recarga de Viajes API
+# Distributed Services Lab: FastAPI + PostgreSQL + Redis
 
-This project is a FastAPI-based backend for a travel recharge system, inspired by systems like TransMilenio (Bogota). It is designed to interact with a Dockerized PostgreSQL database and provides endpoints for managing users, trips, and finances. The project is a learning exercise to improve skills in FastAPI and database management, with plans to evolve into a fully functional and comprehensive API.
+> **Goal**  
+> Build, deploy and test a simple distributed architecture:
+> - **FastAPI** REST API  
+> - **PostgreSQL** relational database (Docker)  
+> - **Redis** in-memory cache (Docker) 
 
 ---
 
-## Features
+## 📖 Table of Contents
 
-- **User Management**: Endpoints to count users, retrieve the latest user, and count active users.
-- **Trip Management**: Endpoints to count total trips.
-- **Financial Insights**: Endpoints to calculate total revenue.
-- **Database Health Check**: Endpoint to verify database connectivity.
-- **Interactive API Documentation**: Available at `/docs` (Swagger UI) and `/redoc` (ReDoc).
+1. [Context](#context)  
+2. [Architecture](#architecture)  
+   - [Network Topology](#network-topology)  
+   - [Container Diagram](#container-diagram)  
+3. [Prerequisites](#prerequisites)  
+4. [Installation & Setup](#installation--setup)  
+5. [Usage](#usage)  
+6. [Deployment](#deployment)  
+   - [`DEPLOYMENT.md`](#deploymentmd)  
+   - `DEPLOYMENT-REDIS.md` (proposed)  
+7. [Future Improvements](#future-improvements)  
+8. [License](#license)  
 
+---
+
+## Context
+
+Modern systems need low-latency, high-throughput data access.  
+- **PostgreSQL** provides durability, consistency and complex queries.  
+- **Redis** sits as a cache layer, speeding up repeated reads (e.g. stats, aggregates).  
+- **FastAPI** ties it all together with async endpoints.
+
+## Architecture
+### Network Topology
+```mermaid
+graph TB
+  subgraph VirtualBox
+    A[Host: Port Forwarding 127.0.0.1:2222 → VM1:22] --> VM1[VM FastAPI<br>eth0: NAT-DHCP<br>eth1: 192.168.100.10]
+    B[Host: Port Forwarding 127.0.0.1:2223 → VM2:22] --> VM2[VM Redis<br>eth0: NAT-DHCP<br>eth1: 192.168.100.20]
+    C[Host: Port Forwarding 127.0.0.1:2224 → VM3:22] --> VM3[VM PostgreSQL<br>eth0: NAT-DHCP<br>eth1: 192.168.100.30]
+  end
+
+  VM1 <-->|eth1 ↔ eth1<br>Direct Communication| VM2
+  VM1 <-->|eth1 ↔ eth1<br>Direct Communication| VM3
+```
+### Container Diagram
+```mermaid
+%% C4 Container Diagram with Database Grouping
+C4Container
+title Container Diagram – Redis / FastAPI / PostgreSQL Lab
+
+Person(Student, "Student", "Accesses via browser or HTTP client (Postman, curl, etc.)")
+
+Container(FastAPI_App, "FastAPI App", "Python 3.9+, FastAPI", "Exposes REST endpoints; handles caching with Redis and persistence with PostgreSQL")
+
+Container_Boundary(databases, "Databases") {
+  Container(Redis, "Redis", "Redis 7.x (Docker)", "In-memory store for cached data (TTL, in-memory structures)")
+  Container(PostgreSQL, "PostgreSQL", "PostgreSQL 13 (Docker)", "Relational database for persistent data")
+}
+
+Rel(Student, FastAPI_App, "HTTP / HTTPS API")
+Rel(FastAPI_App, Redis, "GET / SET (redis-py)")
+Rel(FastAPI_App, PostgreSQL, "INSERT / SELECT (psycopg2 or SQLAlchemy)")
+
+```
 ---
 
 ## Project Structure
@@ -35,14 +88,15 @@ SISTEMA-RECARGA-VIAJES-BACKEND/
 ## Getting Started
 
 ### Prerequisites
-
+- VirtualBox VMs with Ubuntu/Alpine or any linux OS
+- Docker & Docker Compose installed on each VM
+- SSH keys configured for password-less login
+- Git & GitHub account
 - Python 3.8 or higher
 - pip (Python package manager)
 - Git
-- Docker (for the database)
 
 ### Installation
-
 1. Clone the repository:
    ```bash
    git clone https://github.com/FreddyB200/sistema-recarga-viajes-backend.git
@@ -84,15 +138,17 @@ The database for this project is managed in a separate repository. You can find 
 [Database Repository](https://github.com/FreddyB200/sistema-recargas-viajes-db.git)
 
 ---
+```mermaid
+graph TB
+  subgraph VirtualBox
+    A[Host: Port Forwarding 127.0.0.1:2222 -> VM1:22] --> VM1[VM FastAPI<br>eth0: NAT - DHCP<br>eth1: 192.168.100.10]
+    B[Host: Port Forwarding 127.0.0.1:2223 -> VM2:22] --> VM2[VM Redis<br>eth0: NAT - DHCP<br>eth1: 192.168.100.20]
+    C[Host: Port Forwarding 127.0.0.1:2224 -> VM3:22] --> VM3[VM PostgreSQL<br>eth0: NAT - DHCP<br>eth1: 192.168.100.30]
+  end
 
-## Future Improvements
-
-- Add authentication and authorization.
-- Implement more endpoints for advanced user and trip management.
-- Add unit and integration tests.
-- Improve error handling and logging.
-- Deploy the application to a cloud platform.
-
+  VM1 <-->|eth1 ↔ eth1<br>Direct Communication| VM2
+  VM1 <-->|eth1 ↔ eth1<br>Direct Communication| VM3
+```
 ---
 
 ## License
