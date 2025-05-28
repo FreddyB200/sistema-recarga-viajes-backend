@@ -1,4 +1,5 @@
-# Distributed Services Lab: FastAPI + PostgreSQL + Redis
+# Travel Recharge API – Distributed Systems Lab
+This project simulates a recharge system (like TransMilenio cards) using a distributed architecture with FastAPI, PostgreSQL, and Redis. It demonstrates caching, database logic optimization, and API development using modern Python tools.
 
 > **Goal**  
 > Build, deploy and test a simple distributed architecture:
