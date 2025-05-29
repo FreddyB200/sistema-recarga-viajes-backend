@@ -128,37 +128,66 @@ def get_total_revenue(db: Session = Depends(get_db)): # Esta está bien
 
 
 @app.get("/finance/revenue/localities")
-def get_revenue_by_localities(db: Session = Depends(get_db)): 
-    # (código ya provisto por ti para este endpoint)
-    query = text("""SELECT
-        l.nombre AS localidad,
-        SUM(t.valor) AS total_recaudado
-        FROM VIAJES v
-        JOIN TARIFAS t ON v.tarifa_id = t.tarifa_id
-        JOIN ESTACIONES e ON v.estacion_abordaje_id = e.estacion_id
-        JOIN LOCALIDADES l ON e.localidad_id = l.localidad_id
-        GROUP BY l.nombre
-        ORDER BY total_recaudado DESC;
-    """)
-    try:
-        result_proxy = db.execute(query) # Obtenemos el ResultProxy
-        rows = result_proxy.fetchall() # Obtenemos todas las filas como una lista de Tuples/Rows
+def get_revenue_by_localities( # Nombre de función corregido
+    db: Session = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis_client)
+):
+    cache_key = "finance:revenue:by_localities"
 
-        response_data = [
+    try:
+        cached_data_str = redis_client.get(cache_key)
+        if cached_data_str:
+            print(f"Cache HIT para '{cache_key}'")
+            # json.loads convertirá el string JSON de nuevo en una lista de diccionarios
+            response_data_list = json.loads(cached_data_str)
+            return {"data": response_data_list, "currency": "COP"}
+
+        print(f"Cache MISS para '{cache_key}'. Consultando base de datos...")
+        query = text("""SELECT
+            l.nombre AS localidad, SUM(t.valor) AS total_recaudado
+            FROM VIAJES v
+            JOIN TARIFAS t ON v.tarifa_id = t.tarifa_id
+            JOIN ESTACIONES e ON v.estacion_abordaje_id = e.estacion_id
+            JOIN LOCALIDADES l ON e.localidad_id = l.localidad_id
+            GROUP BY l.nombre ORDER BY total_recaudado DESC;
+        """)
+        result_proxy = db.execute(query)
+        rows = result_proxy.fetchall()
+
+        response_data_list = [
             {"localidad": row.localidad, "total_recaudado": float(row.total_recaudado)}
-            for row in rows # Iteramos sobre las filas
+            for row in rows
         ]
-        return {"data": response_data, "currency": "COP"}
+
+        # Guardamos la lista de diccionarios como un string JSON en Redis
+        redis_client.setex(cache_key, CACHE_TTL_SECONDS, json.dumps(response_data_list))
+        print(f"'{cache_key}' guardado en Redis con TTL de {CACHE_TTL_SECONDS}s.")
+        
+        return {"data": response_data_list, "currency": "COP"}
+
+    except redis.exceptions.RedisError as e:
+        print(f"ALERTA: Error de Redis durante la operación: {e}. Sirviendo desde DB.")
+        # Aquí la lógica de fallback (consultar DB y construir la respuesta)
+        query = text("""SELECT
+            l.nombre AS localidad, SUM(t.valor) AS total_recaudado
+            FROM VIAJES v
+            JOIN TARIFAS t ON v.tarifa_id = t.tarifa_id
+            JOIN ESTACIONES e ON v.estacion_abordaje_id = e.estacion_id
+            JOIN LOCALIDADES l ON e.localidad_id = l.localidad_id
+            GROUP BY l.nombre ORDER BY total_recaudado DESC;
+        """)
+        result_proxy = db.execute(query)
+        rows = result_proxy.fetchall()
+        response_data_list = [
+            {"localidad": row.localidad, "total_recaudado": float(row.total_recaudado)}
+            for row in rows
+        ]
+        return {"data": response_data_list, "currency": "COP"}
     except Exception as e:
+        # (Tu manejo de excepciones de BD original)
         raise HTTPException(
             status_code=500,
-            detail={
-                "error": {
-                    "code": "CALCULATION_ERROR",
-                    "message": f"Error at calculating total incomes per localitie: {str(e)}"
-                }
-            }
-        )
+            detail={"error": {"code": "CALCULATION_ERROR", "message": f"Error calculando ingresos por localidad: {str(e)}"}})
 
 
 
