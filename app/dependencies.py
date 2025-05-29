@@ -6,7 +6,7 @@ import os
 from fastapi import HTTPException
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(".env.redis")
 
 REDIS_HOST = os.getenv("REDIS_HOST", "192.168.100.20") #redis vm IP
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6340))
