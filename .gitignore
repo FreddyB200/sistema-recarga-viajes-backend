@@ -6,8 +6,6 @@ __pycache__/
 *.env
 .env.postgres
 .env.redis
-.env.redis.example
-.env.postgres.example
 
 # Virtual environments
 venv/
