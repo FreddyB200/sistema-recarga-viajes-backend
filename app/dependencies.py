@@ -1,5 +1,5 @@
 import redis.exceptions
-from database import SessionLocal\
+from database import SessionLocal
 
 import redis
 import os
@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv(".env.redis")
 
-REDIS_HOST = os.getenv("REDIS_HOST", "192.168.100.20") #redis vm IP
+REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1") #redis vm IP
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6340))
 
 redis_client_instance = None # Global variable for the Redis client instance
