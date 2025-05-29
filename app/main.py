@@ -1,46 +1,46 @@
 from fastapi import FastAPI, Depends, HTTPException, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-# import models # Si no usas los modelos de SQLAlchemy para crear tablas o para ORM, puedes comentarlo.
-from database import engine # Asegúrate que tu database.py esté configurado correctamente
+# import models # If you don't use SQLAlchemy models to create tables or for ORM, you can comment this out.
+from database import engine # Make sure your database.py is configured correctly
 from dependencies import get_db
-from decimal import Decimal # Para manejar los resultados de SUM
+from decimal import Decimal # To handle SUM results
 
-import json # Para serializar/deserializar
-import redis # Para el type hint de la dependencia Redis
-from dependencies import get_db, get_redis_client # <-- ASEGÚRATE DE IMPORTAR get_redis_client
+import json # For serialization/deserialization
+import redis # For the type hint of the Redis dependency
+from dependencies import get_db, get_redis_client # <-- MAKE SURE TO IMPORT get_redis_client
 
 
-# Constante para el TTL de la caché
-CACHE_TTL_SECONDS = 60 # 1 minuto de caché
+# Constant for cache TTL
+CACHE_TTL_SECONDS = 60 # 1 minute cache
 
-# models.Base.metadata.create_all(bind=engine) # Considera comentar o eliminar esta línea si la BD ya está creada y no usas los modelos para crear tablas.
+# models.Base.metadata.create_all(bind=engine) # Consider commenting or removing this line if the DB is already created and you don't use models to create tables.
 
 app = FastAPI()
 
-# Tu endpoint /ping-db (ya lo tienes, asegúrate que funcione con tu config)
+# Your /ping-db endpoint (make sure it works with your config)
 @app.get("/ping-db")
 def ping_db(db: Session = Depends(get_db)):
     try:
         db.execute(text("SELECT 1"))
-        return {"status": "Conexion exitosa"}
+        return {"status": "Successful connection"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"error": {"code": "DATABASE_CONNECTION_ERROR", "message": f"Error de conexión a la base de datos: {str(e)}"}})
+        raise HTTPException(status_code=500, detail={"error": {"code": "DATABASE_CONNECTION_ERROR", "message": f"Database connection error: {str(e)}"}})
 
-# --- ENDPOINTS REQUERIDOS (CORREGIDOS SEGÚN ERD) ---
+# --- REQUIRED ENDPOINTS (CORRECTED ACCORDING TO ERD) ---
 
 @app.get("/users/count")
 def get_users_count(db: Session = Depends(get_db)):
     try:
-        # Usando 'usuarios' en minúsculas según convención de PostgreSQL para identificadores no citados
+        # Using 'usuarios' in lowercase according to PostgreSQL convention for unquoted identifiers
         result = db.execute(text("SELECT COUNT(*) AS total_users FROM usuarios;")).scalar_one_or_none()
         return {"total_users": result if result is not None else 0}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"error": {"code": "DATABASE_ERROR", "message": f"Error al consultar la base de datos: {str(e)}"}})
+        raise HTTPException(status_code=500, detail={"error": {"code": "DATABASE_ERROR", "message": f"Error querying the database: {str(e)}"}})
 
 @app.get("/users/active/count")
 def get_active_users_count(db: Session = Depends(get_db)):
-    # Asumiendo que TARJETAS.estado = 'activa' para tarjetas activas. ¡Verifica este valor!
+    # Assuming TARJETAS.estado = 'activa' for active cards. Verify this value!
     query = text("""
         SELECT COUNT(DISTINCT u.usuario_id) AS active_users_count
         FROM usuarios u
@@ -51,7 +51,7 @@ def get_active_users_count(db: Session = Depends(get_db)):
         result = db.execute(query).scalar_one_or_none()
         return {"active_users_count": result if result is not None else 0}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"error": {"code": "DATABASE_ERROR", "message": f"Error al consultar la base de datos: {str(e)}"}})
+        raise HTTPException(status_code=500, detail={"error": {"code": "DATABASE_ERROR", "message": f"Error querying the database: {str(e)}"}})
 
 @app.get("/users/latest")
 def get_latest_user(db: Session = Depends(get_db)):
@@ -69,51 +69,47 @@ def get_latest_user(db: Session = Depends(get_db)):
         else:
             return Response(status_code=204) # No Content
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"error": {"code": "DATABASE_ERROR", "message": f"Error al consultar la base de datos: {str(e)}"}})
+        raise HTTPException(status_code=500, detail={"error": {"code": "DATABASE_ERROR", "message": f"Error querying the database: {str(e)}"}})
 
 @app.get("/trips/total")
 def get_total_trips(
     db: Session = Depends(get_db),
-    redis_client: redis.Redis = Depends(get_redis_client) # Inyectamos el cliente Redis
+    redis_client: redis.Redis = Depends(get_redis_client) # Inject Redis client
 ):
-    cache_key = "trips:total" # Clave para Redis
+    cache_key = "trips:total" # Redis key
 
     try:
-        # 1. Intentar leer de Redis
+        # 1. Try to read from Redis
         cached_data_str = redis_client.get(cache_key)
         if cached_data_str:
-            print(f"Cache HIT para '{cache_key}'")
-            total_trips = json.loads(cached_data_str) # Convertir string JSON a número
+            print(f"Cache HIT for '{cache_key}'")
+            total_trips = json.loads(cached_data_str) # Convert JSON string to number
             return {"total_trips": total_trips}
 
-        # 2. Cache MISS: Consultar DB
-        print(f"Cache MISS para '{cache_key}'. Consultando base de datos...")
+        # 2. Cache MISS: Query DB
+        print(f"Cache MISS for '{cache_key}'. Querying database...")
         result = db.execute(text("SELECT COUNT(*) AS total_trips FROM viajes;")).scalar_one_or_none()
         total_trips = result if result is not None else 0
 
-        # 3. Guardar en Redis antes de devolver
-        # Convertimos el número a string JSON para guardarlo
+        # 3. Save to Redis before returning
+        # Convert number to JSON string for storage
         redis_client.setex(cache_key, CACHE_TTL_SECONDS, json.dumps(total_trips))
-        print(f"'{cache_key}' guardado en Redis con TTL de {CACHE_TTL_SECONDS}s.")
+        print(f"'{cache_key}' saved to Redis with TTL of {CACHE_TTL_SECONDS}s.")
         
         return {"total_trips": total_trips}
 
     except redis.exceptions.RedisError as e:
-        # Fallback si Redis falla (pero la conexión inicial en dependencies.py funcionó)
-        print(f"ALERTA: Error de Redis durante la operación: {e}. Sirviendo desde DB.")
+        # Fallback if Redis fails (but initial connection in dependencies.py worked)
+        print(f"ALERT: Redis error during operation: {e}. Serving from DB.")
         result = db.execute(text("SELECT COUNT(*) AS total_trips FROM viajes;")).scalar_one_or_none()
         total_trips = result if result is not None else 0
         return {"total_trips": total_trips}
     except Exception as e:
-        # Manejo de errores de base de datos u otros no relacionados con Redis directamente
-        # (Este es tu bloque original de manejo de excepciones de BD)
-        raise HTTPException(status_code=500, detail={"error": {"code": "DATABASE_ERROR", "message": f"Error al consultar la base de datos: {str(e)}"}})
+        # Handle database errors or others not directly related to Redis
+        raise HTTPException(status_code=500, detail={"error": {"code": "DATABASE_ERROR", "message": f"Error querying the database: {str(e)}"}})
 
-        
 @app.get("/finance/revenue")
-def get_total_revenue(db: Session = Depends(get_db)): # Esta está bien
-    # ... tu lógica para el total general ...
-    # (código ya provisto por ti)
+def get_total_revenue(db: Session = Depends(get_db)): # This one is fine
     query = text("""
         SELECT SUM(tf.valor) AS total_revenue
         FROM viajes v
@@ -124,11 +120,10 @@ def get_total_revenue(db: Session = Depends(get_db)): # Esta está bien
         total_revenue = result if result is not None else Decimal('0.00')
         return {"total_revenue": float(total_revenue), "currency": "COP"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"error": {"code": "CALCULATION_ERROR", "message": f"Error at calculating total incomes: {str(e)}"}})
-
+        raise HTTPException(status_code=500, detail={"error": {"code": "CALCULATION_ERROR", "message": f"Error calculating total incomes: {str(e)}"}})
 
 @app.get("/finance/revenue/localities")
-def get_revenue_by_localities( # Nombre de función corregido
+def get_revenue_by_localities(
     db: Session = Depends(get_db),
     redis_client: redis.Redis = Depends(get_redis_client)
 ):
@@ -137,12 +132,12 @@ def get_revenue_by_localities( # Nombre de función corregido
     try:
         cached_data_str = redis_client.get(cache_key)
         if cached_data_str:
-            print(f"Cache HIT para '{cache_key}'")
-            # json.loads convertirá el string JSON de nuevo en una lista de diccionarios
+            print(f"Cache HIT for '{cache_key}'")
+            # json.loads will convert the JSON string back into a list of dictionaries
             response_data_list = json.loads(cached_data_str)
             return {"data": response_data_list, "currency": "COP"}
 
-        print(f"Cache MISS para '{cache_key}'. Consultando base de datos...")
+        print(f"Cache MISS for '{cache_key}'. Querying database...")
         query = text("""SELECT
             l.nombre AS localidad, SUM(t.valor) AS total_recaudado
             FROM VIAJES v
@@ -159,15 +154,14 @@ def get_revenue_by_localities( # Nombre de función corregido
             for row in rows
         ]
 
-        # Guardamos la lista de diccionarios como un string JSON en Redis
+        # Save the list of dictionaries as a JSON string in Redis
         redis_client.setex(cache_key, CACHE_TTL_SECONDS, json.dumps(response_data_list))
-        print(f"'{cache_key}' guardado en Redis con TTL de {CACHE_TTL_SECONDS}s.")
+        print(f"'{cache_key}' saved to Redis with TTL of {CACHE_TTL_SECONDS}s.")
         
         return {"data": response_data_list, "currency": "COP"}
 
     except redis.exceptions.RedisError as e:
-        print(f"ALERTA: Error de Redis durante la operación: {e}. Sirviendo desde DB.")
-        # Aquí la lógica de fallback (consultar DB y construir la respuesta)
+        print(f"ALERT: Redis error during operation: {e}. Serving from DB.")
         query = text("""SELECT
             l.nombre AS localidad, SUM(t.valor) AS total_recaudado
             FROM VIAJES v
@@ -184,10 +178,9 @@ def get_revenue_by_localities( # Nombre de función corregido
         ]
         return {"data": response_data_list, "currency": "COP"}
     except Exception as e:
-        # (Tu manejo de excepciones de BD original)
         raise HTTPException(
             status_code=500,
-            detail={"error": {"code": "CALCULATION_ERROR", "message": f"Error calculando ingresos por localidad: {str(e)}"}})
+            detail={"error": {"code": "CALCULATION_ERROR", "message": f"Error calculating revenue by locality: {str(e)}"}})
 
 
 
@@ -198,5 +191,4 @@ def get_revenue_by_localities( # Nombre de función corregido
 
 
 
-    
-    
+
