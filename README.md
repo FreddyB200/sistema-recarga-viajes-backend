@@ -189,3 +189,58 @@ This project is licensed under the MIT License. See the LICENSE file for details
 - [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
 - [Docker Documentation](https://docs.docker.com/)
 - [Redis Documentation] (https://redis.io/docs/latest/)
+
+---
+
+## Latency Testing Results
+
+### Cacheable Endpoints
+
+#### Endpoint: `/trips/total`
+- **First Request (Cache MISS)**: 57 ms
+- **Second Request (Cache HIT)**: 3 ms
+- **Third Request**: 32 ms
+
+#### Endpoint: `/trips/finance/revenue`
+- **First Request (Cache MISS)**: 60 ms
+- **Second Request (Cache HIT)**: 5 ms
+
+### Non-Cacheable Endpoints
+
+#### Endpoint: `/users/count`
+- **Average Latency**: 120 ms
+
+#### Endpoint: `/users/active/count`
+- **Average Latency**: 150 ms
+
+#### Endpoint: `/users/latest`
+- **Average Latency**: 200 ms
+
+---
+
+## Scripts Used for Latency Testing
+
+### Cacheable Endpoints
+The script `latency_test.py` was used to measure the latency for cacheable endpoints. It sends two requests to the endpoint and calculates the latency for Cache MISS and Cache HIT scenarios.
+
+### Non-Cacheable Endpoints
+The script `latency_non_cacheable.py` was used to measure the latency for non-cacheable endpoints. It sends multiple requests to the endpoints and calculates the average latency.
+
+---
+
+## How to Use the Latency Scripts
+
+1. **Run the Cacheable Latency Script**:
+   ```bash
+   python latency_test.py
+   ```
+   This will measure the latency for cacheable endpoints.
+
+2. **Run the Non-Cacheable Latency Script**:
+   ```bash
+   python latency_non_cacheable.py
+   ```
+   This will measure the latency for non-cacheable endpoints.
+
+3. **Analyze Results**:
+   Compare the results to understand the performance improvements provided by Redis caching.

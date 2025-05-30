@@ -4,7 +4,7 @@ This document provides a step-by-step guide to deploy and run the project on any
 
 ---
 
-## 1. Prerequisites
+## Prerequisites
 
 Before starting, ensure you have the following installed on your system:
 
@@ -12,14 +12,15 @@ Before starting, ensure you have the following installed on your system:
 - pip (Python package manager)
 - Git
 - PostgreSQL (or the database system used by the project)
+- Redis (optional, for caching)
 
 ---
 
-## 2. Local Setup
+## Local Setup
 
 Follow these steps to set up and run the project locally:
 
-### 2.1 Clone the Repository
+### Step 1: Clone the Repository
 
 Clone the project repository to your local machine:
 
@@ -28,17 +29,18 @@ git clone https://github.com/your-repo-url.git
 cd SISTEMA-RECARGA-VIAJES-BACKEND
 ```
 
-### 2.2 Copy `.env.example` and Configure Environment Variables
+### Step 2: Configure Environment Variables
 
-Copy the `.env.example` file to `.env`:
+Copy the example files to their respective `.env` files:
 
 ```bash
-cp .env.example .env
+cp .env.postgres.example .env.postgres
+cp .env.redis.example .env.redis
 ```
 
-Edit the `.env` file and configure the environment variables as needed (e.g., database connection details, secret keys, etc.).
+Edit the `.env` files to configure your database and Redis credentials.
 
-### 2.3 Create a Virtual Environment and Install Dependencies
+### Step 3: Create a Virtual Environment and Install Dependencies
 
 Create a virtual environment:
 
@@ -63,19 +65,57 @@ Install the required dependencies:
 pip install -r requirements.txt
 ```
 
-### 2.4 Run the Application with FastAPI
+### Step 4: Run the Application
 
 Start the FastAPI application:
 
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-with FastAPI:
-   ```bash
-   fastapi dev app/main.py --host 0.0.0.0 --port 8000
-   ```
 
 The application will be available at `http://127.0.0.1:8000`.
+
+---
+
+## Redis Setup
+
+If you are using Redis for caching, ensure Redis is running:
+
+### Option 1: Run Redis Locally
+
+Install Redis on your machine and start the service:
+
+```bash
+sudo apt update
+sudo apt install redis-server
+sudo systemctl start redis
+```
+
+### Option 2: Run Redis in Docker
+
+Run Redis in a Docker container:
+
+```bash
+docker run -d --name redis -p 6379:6379 redis:latest
+```
+
+---
+
+## Testing the Application
+
+### Cacheable Endpoints
+Test the cacheable endpoints using the `latency_test.py` script:
+
+```bash
+python latency_test.py
+```
+
+### Non-Cacheable Endpoints
+Test the non-cacheable endpoints using the `latency_non_cacheable.py` script:
+
+```bash
+python latency_non_cacheable.py
+```
 
 ---
 
