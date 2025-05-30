@@ -25,7 +25,7 @@ Follow these steps to set up and run the project locally:
 Clone the project repository to your local machine:
 
 ```bash
-git clone https://github.com/your-repo-url.git
+git clone https://github.com/FreddyB200/travel-recharge-api.git
 cd travel-recharge-database
 ```
 
