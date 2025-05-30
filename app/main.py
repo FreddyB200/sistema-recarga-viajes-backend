@@ -40,14 +40,9 @@ def get_users_count(db: Session = Depends(get_db)):
 
 @app.get("/users/active/count")
 def get_active_users_count(db: Session = Depends(get_db)):
-    # Assuming TARJETAS.estado = 'activa' for active cards. Verify this value!
-    query = text("""
-        SELECT COUNT(DISTINCT u.usuario_id) AS active_users_count
-        FROM usuarios u
-        JOIN tarjetas t ON u.usuario_id = t.usuario_id
-        WHERE t.estado = 'Activa'; 
-    """)
     try:
+        # Call the stored procedure for active users count
+        query = text("CALL get_active_users_count();")
         result = db.execute(query).scalar_one_or_none()
         return {"active_users_count": result if result is not None else 0}
     except Exception as e:
@@ -133,19 +128,12 @@ def get_revenue_by_localities(
         cached_data_str = redis_client.get(cache_key)
         if cached_data_str:
             print(f"Cache HIT for '{cache_key}'")
-            # json.loads will convert the JSON string back into a list of dictionaries
             response_data_list = json.loads(cached_data_str)
             return {"data": response_data_list, "currency": "COP"}
 
         print(f"Cache MISS for '{cache_key}'. Querying database...")
-        query = text("""SELECT
-            l.nombre AS localidad, SUM(t.valor) AS total_recaudado
-            FROM VIAJES v
-            JOIN TARIFAS t ON v.tarifa_id = t.tarifa_id
-            JOIN ESTACIONES e ON v.estacion_abordaje_id = e.estacion_id
-            JOIN LOCALIDADES l ON e.localidad_id = l.localidad_id
-            GROUP BY l.nombre ORDER BY total_recaudado DESC;
-        """)
+        # Call the stored procedure for revenue by localities
+        query = text("CALL get_revenue_by_localities();")
         result_proxy = db.execute(query)
         rows = result_proxy.fetchall()
 
@@ -154,22 +142,14 @@ def get_revenue_by_localities(
             for row in rows
         ]
 
-        # Save the list of dictionaries as a JSON string in Redis
         redis_client.setex(cache_key, CACHE_TTL_SECONDS, json.dumps(response_data_list))
         print(f"'{cache_key}' saved to Redis with TTL of {CACHE_TTL_SECONDS}s.")
-        
+
         return {"data": response_data_list, "currency": "COP"}
 
     except redis.exceptions.RedisError as e:
         print(f"ALERT: Redis error during operation: {e}. Serving from DB.")
-        query = text("""SELECT
-            l.nombre AS localidad, SUM(t.valor) AS total_recaudado
-            FROM VIAJES v
-            JOIN TARIFAS t ON v.tarifa_id = t.tarifa_id
-            JOIN ESTACIONES e ON v.estacion_abordaje_id = e.estacion_id
-            JOIN LOCALIDADES l ON e.localidad_id = l.localidad_id
-            GROUP BY l.nombre ORDER BY total_recaudado DESC;
-        """)
+        query = text("CALL get_revenue_by_localities();")
         result_proxy = db.execute(query)
         rows = result_proxy.fetchall()
         response_data_list = [
