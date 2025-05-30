@@ -156,14 +156,14 @@ The database for this project is managed in a separate repository. You can find 
 
 ### Cacheable Endpoints
 
-#### Endpoint: `/trips/total`
+#### Endpoint: `/trips/total` MISS=postgres, HIT=redis
 - **First Request (Cache MISS)**: 57.34 ms
 - **Second Request (Cache HIT)**: 3.2 ms
 - **Third Request**: 6 ms
 
 #### Endpoint: `/trips/finance/revenue`
-- **First Request (Cache MISS, with postgres)**: 62.23 ms
-- **Second Request (Cache HIT, with Redis)**: 2.55 ms
+- **First Request (Cache MISS)**: 62.23 ms
+- **Second Request (Cache HIT)**: 2.55 ms
 
 ### Non-Cacheable Endpoints
 
