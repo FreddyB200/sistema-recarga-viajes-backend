@@ -133,38 +133,15 @@ SISTEMA-RECARGA-VIAJES-BACKEND/
 - pip (Python package manager)
 
 ### Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/FreddyB200/sistema-recarga-viajes-backend.git
-   cd travel-recharge-api
-   ```
+
+For installation guide, refer to the [Deployment Guide](DEPLOYMENT.md).
+
 ---
 
-2. Set up the environment variables:
-   ```bash
-   cp .env.example .env
-   ```
-   Configure the `.env` file with your database credentials and other settings.
+## Documentation
 
-3. Create a virtual environment and install dependencies:
-   ```bash
-   python3 -m venv env
-   source env/bin/activate
-   pip install -r requirements.txt
-   ```
-
-4. Run the application:
-   ```bash
-   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-   ```
-   with FastAPI:
-   ```bash
-   fastapi dev app/main.py --host 0.0.0.0 --port 8000
-   ```
-
-5. Access the API documentation:
-   - Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-   - ReDoc: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+- http://127.0.0.1:8000/docs
+- http://127.0.0.1:8000/redoc
 
 ---
 

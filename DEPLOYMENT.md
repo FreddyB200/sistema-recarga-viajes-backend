@@ -26,7 +26,7 @@ Clone the project repository to your local machine:
 
 ```bash
 git clone https://github.com/your-repo-url.git
-cd SISTEMA-RECARGA-VIAJES-BACKEND
+cd travel-recharge-database
 ```
 
 ### Step 2: Configure Environment Variables
@@ -45,18 +45,18 @@ Edit the `.env` files to configure your database and Redis credentials.
 Create a virtual environment:
 
 ```bash
-python3 -m venv venv
+python3 -m venv env
 ```
 
 Activate the virtual environment:
 
 - On Linux/MacOS:
   ```bash
-  source venv/bin/activate
+  source env/bin/activate
   ```
 - On Windows:
   ```bash
-  venv\Scripts\activate
+  env\Scripts\activate
   ```
 
 Install the required dependencies:
@@ -67,7 +67,25 @@ pip install -r requirements.txt
 
 ### Step 4: Run the Application
 
-Start the FastAPI application:
+#### Method 1: FastAPI CLI (Recommended)
+
+Use the FastAPI CLI for development:
+
+```bash
+fastapi dev app/main.py --host 0.0.0.0 --port 8000
+```
+
+#### Method 2: FastAPI Run
+
+Run the application using FastAPI:
+
+```bash
+fastapi run app/main.py --host 0.0.0.0 --port 8000
+```
+
+#### Method 3: Uvicorn
+
+Alternatively, you can use Uvicorn:
 
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -116,6 +134,13 @@ Test the non-cacheable endpoints using the `latency_non_cacheable.py` script:
 ```bash
 python latency_non_cacheable.py
 ```
+
+---
+
+## Documentation
+
+- [API Documentation (Swagger UI)](http://127.0.0.1:8000/docs)
+- [API Documentation (ReDoc)](http://127.0.0.1:8000/redoc)
 
 ---
 
