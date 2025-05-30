@@ -15,14 +15,12 @@ This project simulates a recharge system (like TransMilenio cards) using a distr
 2. [Architecture](#architecture)  
    - [Network Topology](#network-topology)  
    - [Container Diagram](#container-diagram)  
+   - [Request flow](#request-flow)
 3. [Prerequisites](#prerequisites)  
-4. [Installation & Setup](#installation--setup)  
-5. [Usage](#usage)  
-6. [Deployment](#deployment)  
+4. [Installation](#installation)  
+5. [Deployment](#deployment)  
    - [`DEPLOYMENT.md`](#deploymentmd)  
-   - `DEPLOYMENT-REDIS.md` (proposed)  
-7. [Future Improvements](#future-improvements)  
-8. [License](#license)  
+6. [License](#license)  
 
 ---
 
