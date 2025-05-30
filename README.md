@@ -67,7 +67,7 @@ Rel(FastAPI_App, PostgreSQL, "INSERT / SELECT (psycopg2 or SQLAlchemy)")
 
 ```
 ---
-### request flow
+### Request flow
 ```mermaid
 sequenceDiagram
     participant C as Client (Browser/Postman)
@@ -131,13 +131,12 @@ SISTEMA-RECARGA-VIAJES-BACKEND/
 - Git & GitHub account
 - Python 3.8 or higher
 - pip (Python package manager)
-- Git
 
 ### Installation
 1. Clone the repository:
    ```bash
    git clone https://github.com/FreddyB200/sistema-recarga-viajes-backend.git
-   cd SISTEMA-RECARGA-VIAJES-BACKEND
+   cd travel-recharge-api
    ```
 ---
 
@@ -149,8 +148,8 @@ SISTEMA-RECARGA-VIAJES-BACKEND/
 
 3. Create a virtual environment and install dependencies:
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate
+   python3 -m venv env
+   source env/bin/activate
    pip install -r requirements.txt
    ```
 
@@ -173,48 +172,32 @@ SISTEMA-RECARGA-VIAJES-BACKEND/
 
 The database for this project is managed in a separate repository. You can find it here:
 
-[Database Repository](https://github.com/FreddyB200/travel-recharge-api.git)
+[Database Repository](https://github.com/FreddyB200/travel-recharge-database.git)
 
 ---
-
-## License
-
-This project is licensed under the MIT License. See the LICENSE file for details.
-
----
-
-## Acknowledgments
-
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
-- [Docker Documentation](https://docs.docker.com/)
-- [Redis Documentation] (https://redis.io/docs/latest/)
-
----
-
 ## Latency Testing Results
 
 ### Cacheable Endpoints
 
 #### Endpoint: `/trips/total`
-- **First Request (Cache MISS)**: 57 ms
-- **Second Request (Cache HIT)**: 3 ms
-- **Third Request**: 32 ms
+- **First Request (Cache MISS)**: 57.34 ms
+- **Second Request (Cache HIT)**: 3.2 ms
+- **Third Request**: 6 ms
 
 #### Endpoint: `/trips/finance/revenue`
-- **First Request (Cache MISS)**: 60 ms
-- **Second Request (Cache HIT)**: 5 ms
+- **First Request (Cache MISS, with postgres)**: 62.23 ms
+- **Second Request (Cache HIT, with Redis)**: 2.55 ms
 
 ### Non-Cacheable Endpoints
 
 #### Endpoint: `/users/count`
-- **Average Latency**: 120 ms
+- **Average Latency**: 8.11 ms
 
 #### Endpoint: `/users/active/count`
-- **Average Latency**: 150 ms
+- **Average Latency**: 9.11 ms
 
 #### Endpoint: `/users/latest`
-- **Average Latency**: 200 ms
+- **Average Latency**: 6.69 ms
 
 ---
 
@@ -244,3 +227,19 @@ The script `latency_non_cacheable.py` was used to measure the latency for non-ca
 
 3. **Analyze Results**:
    Compare the results to understand the performance improvements provided by Redis caching.
+
+
+
+
+## License
+This project is licensed under the MIT License. See the LICENSE file for details.
+
+---
+
+## Acknowledgments
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
+- [Docker Documentation](https://docs.docker.com/)
+- [Redis Documentation](https://redis.io/docs/latest/)
+
+---
