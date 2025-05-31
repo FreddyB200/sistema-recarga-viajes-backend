@@ -4,7 +4,7 @@ This project simulates a recharge system (like TransMilenio cards) using a distr
 
 > **Project Goal:** Build, deploy, and test a simple distributed architecture featuring:
 > * **FastAPI** REST API
-> * **PostgreSQL** relational database (Dockerized, in a separate repository)
+> * **PostgreSQL** relational database (Dockerized, setup instructions and schema in its [own repository](https://github.com/FreddyB200/travel-recharge-database.git))
 > * **Redis** in-memory cache (Dockerized or local instance)
 
 ---
