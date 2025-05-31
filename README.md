@@ -12,15 +12,14 @@ This project simulates a recharge system (like TransMilenio cards) using a distr
 ## 📖 Table of Contents
 
 1. [Context](#context)  
-2. [Architecture](#architecture)  
+2. [Architecture Diagrams](#architecture)  
    - [Network Topology](#network-topology)  
-   - [Container Diagram](#container-diagram)  
+   - [Container](#container)  
    - [Request flow](#request-flow)
 3. [Prerequisites](#prerequisites)  
-4. [Installation](#installation)  
-5. [Deployment](#deployment)  
-   - [`DEPLOYMENT.md`](#deploymentmd)  
-6. [License](#license)  
+4. [Installation](#installation)   
+5. [License](#license)  
+6. [Pending Tasks](#pending-tasks)
 
 ---
 
@@ -32,7 +31,7 @@ Modern systems need low-latency, high-throughput data access.
 - **FastAPI** ties it all together with async endpoints.
 
 ## Architecture
-### Network Topology
+### Network Topology Diagram
 ```mermaid
 graph TB
   subgraph VirtualBox
@@ -65,7 +64,7 @@ Rel(FastAPI_App, PostgreSQL, "INSERT / SELECT (psycopg2 or SQLAlchemy)")
 
 ```
 ---
-### Request flow
+### Request Flow Diagram
 ```mermaid
 sequenceDiagram
     participant C as Client (Browser/Postman)
@@ -136,7 +135,7 @@ For installation guide, refer to the [Deployment Guide](DEPLOYMENT.md).
 
 ---
 
-## API Documentation
+## See the API Documentation at
 
 - http://127.0.0.1:8000/docs
 - http://127.0.0.1:8000/redoc
@@ -202,12 +201,40 @@ The script `latency_non_cacheable.py` was used to measure the latency for non-ca
 
 3. **Analyze Results**:
    Compare the results to understand the performance improvements provided by Redis caching.
+---
 
+## Pending Tasks
 
+Here are some ideas and tasks to expand and improve the project:
 
+1. **New Repository: Spring Boot Version**
+   - Create a new repository for the API implemented in Spring Boot.
+   - Apply security with Spring Security and aim for a more robust codebase.
 
-## License
-This project is licensed under the MIT License. See the LICENSE file for details.
+2. **Version in Go**
+   - Develop a version of the API in Go to compare performance with Python.
+
+3. **CI/CD Pipeline**
+   - Implement continuous integration and deployment pipelines using GitHub Actions or similar tools.
+
+4. **Dockerization**
+   - Containerize the application using Docker for easier deployment and scalability.
+
+5. **Database Backups**
+   - Set up automated backups of the database to another server.
+   - Decide whether to document this in the README of this repository or the API repository.
+
+6. **Cloud Integration**
+   - Integrate the application with cloud services like AWS, Google Cloud, or Azure.
+
+7. **Automated Tests**
+   - Write unit, integration, and end-to-end tests to ensure the reliability of the API.
+
+8. **Logging**
+   - Implement structured logging to monitor and debug the application effectively.
+
+9. **Performance Testing**
+   - Use tools like Locust to simulate user load and measure the performance of the API.
 
 ---
 
@@ -218,3 +245,6 @@ This project is licensed under the MIT License. See the LICENSE file for details
 - [Redis Documentation](https://redis.io/docs/latest/)
 
 ---
+## License
+This project is licensed under the MIT License. See the LICENSE file for details.
+
