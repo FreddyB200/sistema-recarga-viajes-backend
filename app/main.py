@@ -104,19 +104,48 @@ def get_total_trips(
         raise HTTPException(status_code=500, detail={"error": {"code": "DATABASE_ERROR", "message": f"Error querying the database: {str(e)}"}})
 
 @app.get("/finance/revenue")
-def get_total_revenue(db: Session = Depends(get_db)): # This one is fine
-    query = text("""
-        SELECT SUM(tf.valor) AS total_revenue
-        FROM viajes v
-        JOIN tarifas tf ON v.tarifa_id = tf.tarifa_id;
-    """)
+def get_total_revenue(
+    db: Session = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis_client)
+):
+    cache_key = "finance:total_revenue"
+
     try:
+        # 1. Try to read from Redis
+        cached_data_str = redis_client.get(cache_key)
+        if cached_data_str:
+            print(f"Cache HIT for '{cache_key}'")
+            total_revenue = json.loads(cached_data_str)
+            return {"total_revenue": total_revenue, "currency": "COP"}
+
+        # 2. Cache MISS: Query DB
+        print(f"Cache MISS for '{cache_key}'. Querying database...")
+        query = text("""
+            SELECT SUM(tf.valor) AS total_revenue
+            FROM viajes v
+            JOIN tarifas tf ON v.tarifa_id = tf.tarifa_id;
+        """)
+        result = db.execute(query).scalar_one_or_none()
+        total_revenue = result if result is not None else Decimal('0.00')
+
+        # 3. Save to Redis before returning
+        redis_client.setex(cache_key, CACHE_TTL_SECONDS, json.dumps(float(total_revenue)))
+        print(f"'{cache_key}' saved to Redis with TTL of {CACHE_TTL_SECONDS}s.")
+
+        return {"total_revenue": float(total_revenue), "currency": "COP"}
+
+    except redis.exceptions.RedisError as e:
+        print(f"ALERT: Redis error during operation: {e}. Serving from DB.")
+        query = text("""
+            SELECT SUM(tf.valor) AS total_revenue
+            FROM viajes v
+            JOIN tarifas tf ON v.tarifa_id = tf.tarifa_id;
+        """)
         result = db.execute(query).scalar_one_or_none()
         total_revenue = result if result is not None else Decimal('0.00')
         return {"total_revenue": float(total_revenue), "currency": "COP"}
     except Exception as e:
         raise HTTPException(status_code=500, detail={"error": {"code": "CALCULATION_ERROR", "message": f"Error calculating total incomes: {str(e)}"}})
-
 @app.get("/finance/revenue/localities")
 def get_revenue_by_localities(
     db: Session = Depends(get_db),

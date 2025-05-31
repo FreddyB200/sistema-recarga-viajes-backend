@@ -6,13 +6,23 @@ def measure_latency(url):
     response = requests.get(url)
     end_time = time.time()
     latency = (end_time - start_time) * 1000  # Convert to ms
-    return latency, response.json()
+    return latency
 
 def test_endpoint(endpoint, iterations):
     print(f"Testing endpoint: {endpoint} for {iterations} iterations")
+    total_latency = 0
+    latencies = []
+
     for i in range(iterations):
-        latency, response = measure_latency(endpoint)
+        latency = measure_latency(endpoint)
+        latencies.append(latency)
+        total_latency += latency
         print(f"Iteration {i + 1}: Latency: {latency:.2f} ms")
+
+    average_latency = total_latency / iterations
+    print(f"\nSummary:")
+    print(f"Total Latency (sum of all iterations): {total_latency:.2f} ms")
+    print(f"Average Latency (mean of all iterations): {average_latency:.2f} ms")
 
 if __name__ == "__main__":
     endpoints = {

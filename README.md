@@ -175,32 +175,59 @@ The database for this project is managed in a separate repository. You can find 
 
 ---
 
-## Scripts Used for Latency Testing
+## Scripts for Latency Testing
 
-### Cacheable Endpoints
-The script `latency_test.py` was used to measure the latency for cacheable endpoints. It sends two requests to the endpoint and calculates the latency for Cache MISS and Cache HIT scenarios.
+### Cached Endpoints
+Use the `latency_test.py` script to test the latency of cached endpoints. You can specify the number of iterations to simulate multiple requests.
 
-### Non-Cacheable Endpoints
-The script `latency_non_cacheable.py` was used to measure the latency for non-cacheable endpoints. It sends multiple requests to the endpoints and calculates the average latency.
+#### Usage:
+```bash
+python scripts/latency_test.py
+```
+
+Follow the prompts to select an endpoint and specify the number of iterations.
+
+### Non-Cached Endpoints
+Use the `latency_non_cacheable.py` script to test the latency of non-cached endpoints. Similar to the cached script, you can specify the number of iterations.
+
+#### Usage:
+```bash
+python scripts/latency_non_cacheable.py
+```
+
+Follow the prompts to select an endpoint and specify the number of iterations.
 
 ---
 
-## How to Use the Latency Scripts
+### Cached Endpoint Example: `/finance/revenue`
+The `/finance/revenue` endpoint now uses Redis for caching. This significantly reduces latency for repeated requests. The cache is automatically invalidated after a specified TTL.
 
-1. **Run the Cacheable Latency Script**:
-   ```bash
-   python latency_test.py
-   ```
-   This will measure the latency for cacheable endpoints.
+#### Example:
+Install curl if not available:
+```bash
+sudo apt update && sudo apt install curl -y
+```
 
-2. **Run the Non-Cacheable Latency Script**:
-   ```bash
-   python latency_non_cacheable.py
-   ```
-   This will measure the latency for non-cacheable endpoints.
+For Alpine Linux:
+```bash
+apk update && apk add curl apache2-utils
+```
 
-3. **Analyze Results**:
-   Compare the results to understand the performance improvements provided by Redis caching.
+Test the endpoint with curl:
+```bash
+curl -X GET http://localhost:8000/finance/revenue
+```
+
+Test the endpoint with ab (Apache Benchmark):
+```bash
+ab -n 100 -c 10 http://localhost:8000/finance/revenue
+```
+
+#### Explanation of `ab` parameters:
+- `-n 100`: Specifies the total number of requests to send to the server. In this case, 100 requests will be sent.
+- `-c 10`: Specifies the number of concurrent requests to send at the same time. In this case, 10 requests will be sent simultaneously.
+
+This command simulates a load test to measure the server's performance under concurrent requests.
 ---
 
 ## Pending Tasks

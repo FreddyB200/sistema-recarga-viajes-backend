@@ -6,23 +6,38 @@ def measure_latency(url):
     response = requests.get(url)
     end_time = time.time()
     latency = (end_time - start_time) * 1000  # Convert to ms
-    return latency, response.json()
+    return latency
 
-def test_endpoints(urls, iterations):
-    for url in urls:
-        print(f"Testing endpoint: {url} for {iterations} iterations")
-        for i in range(iterations):
-            latency, response = measure_latency(url)
-            print(f"Iteration {i + 1}: Latency: {latency:.2f} ms")
-            print(f"Response: {response}")
-            print("-" * 50)
+def test_endpoint(endpoint, iterations):
+    print(f"Testing endpoint: {endpoint} for {iterations} iterations")
+    total_latency = 0
+    latencies = []
+
+    for i in range(iterations):
+        latency = measure_latency(endpoint)
+        latencies.append(latency)
+        total_latency += latency
+        print(f"Iteration {i + 1}: Latency: {latency:.2f} ms")
+
+    average_latency = total_latency / iterations
+    print(f"\nSummary:")
+    print(f"Total Latency (sum of all iterations): {total_latency:.2f} ms")
+    print(f"Average Latency (mean of all iterations): {average_latency:.2f} ms")
 
 if __name__ == "__main__":
-    urls = [
-        "http://localhost:8000/users/count",
-        "http://localhost:8000/users/active/count",
-        "http://localhost:8000/users/latest"
-    ]
+    endpoints = {
+        "1": "http://localhost:8000/users/count",
+        "2": "http://localhost:8000/users/active/count",
+        "3": "http://localhost:8000/users/latest"
+    }
 
-    iterations = int(input("Enter the number of iterations: "))
-    test_endpoints(urls, iterations)
+    print("Choose an endpoint to test:")
+    for key, url in endpoints.items():
+        print(f"{key}: {url}")
+
+    choice = input("Enter the number of the endpoint: ")
+    if choice in endpoints:
+        iterations = int(input("Enter the number of iterations: "))
+        test_endpoint(endpoints[choice], iterations)
+    else:
+        print("Invalid choice. Exiting.")
