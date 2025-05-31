@@ -49,7 +49,7 @@ graph TB
 C4Container
 title Container Diagram – Redis / FastAPI / PostgreSQL Lab
 
-Person(Student, "Student", "Accesses via browser or HTTP client (Postman, curl, etc.)")
+Person(User, "User", "Accesses via browser or HTTP client (Postman, curl, etc.)")
 
 Container(FastAPI_App, "FastAPI App", "Python 3.9+, FastAPI", "Exposes REST endpoints; handles caching with Redis and persistence with PostgreSQL")
 
@@ -58,7 +58,7 @@ Container_Boundary(databases, "Databases") {
   Container(PostgreSQL, "PostgreSQL", "PostgreSQL 13 (Docker)", "Relational database for persistent data")
 }
 
-Rel(Student, FastAPI_App, "HTTP / HTTPS API")
+Rel(User, FastAPI_App, "HTTP / HTTPS API")
 Rel(FastAPI_App, Redis, "GET / SET (redis-py)")
 Rel(FastAPI_App, PostgreSQL, "INSERT / SELECT (psycopg2 or SQLAlchemy)")
 
