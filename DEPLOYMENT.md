@@ -101,18 +101,24 @@ If you are using Redis for caching, ensure Redis is running:
 
 ### Option 1: Run Redis Locally
 
+#### Ubuntu/Debian
 Install Redis on your machine and start the service:
-
 ```bash
 sudo apt update
 sudo apt install redis-server
 sudo systemctl start redis
 ```
 
+#### Alpine Linux
+Install Redis on your machine and start the service:
+```bash
+apk update
+apk add redis
+rc-service redis start
+```
+
 ### Option 2: Run Redis in Docker
-
 Run Redis in a Docker container:
-
 ```bash
 docker run -d --name redis -p 6379:6379 redis:latest
 ```
@@ -134,20 +140,16 @@ Test the non-cacheable endpoints using the `latency_non_cacheable.py` script:
 ```bash
 python latency_non_cacheable.py
 ```
+## Additional Notes
 
+- Ensure your database is running and accessible with the credentials provided in the `.env` file.
+- Use the FastAPI interactive documentation at `http://127.0.0.1:8000/docs` to test the API endpoints.
+- If you encounter issues, check the logs for detailed error messages.
 ---
 
 ## Documentation
 
 - [API Documentation (Swagger UI)](http://127.0.0.1:8000/docs)
 - [API Documentation (ReDoc)](http://127.0.0.1:8000/redoc)
-
----
-
-## Additional Notes
-
-- Ensure your database is running and accessible with the credentials provided in the `.env` file.
-- Use the FastAPI interactive documentation at `http://127.0.0.1:8000/docs` to test the API endpoints.
-- If you encounter issues, check the logs for detailed error messages.
 
 ---
