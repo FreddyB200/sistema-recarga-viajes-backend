@@ -166,4 +166,5 @@ The application should now be available at `http://127.0.0.1:8000.` You can acce
   - Check the console output for specific error messages. Often related to incorrect environment variable settings or inability to connect to database/cache.
 - `ModuleNotFoundError:`
   - Ensure your virtual environment is activated and `pip install -r requirements.txt` was successful.
-This guide should help you get the Travel Recharge API up and running. For details about the API's features, architecture, and how to run tests, please refer to the main README.md file of this repository.
+    
+This guide should help you get the Travel Recharge API up and running. For details about the API's features, architecture, and how to run tests, please refer to the main [README](README.md) file of this repository.
