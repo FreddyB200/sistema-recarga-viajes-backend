@@ -133,7 +133,7 @@ def get_revenue_by_localities(
 
         print(f"Cache MISS for '{cache_key}'. Querying database...")
         # Call the stored procedure for revenue by localities
-        query = text("CALL get_revenue_by_localities();")
+        query = text("SELECT * FROM get_revenue_by_localities();")
         result_proxy = db.execute(query)
         rows = result_proxy.fetchall()
 
@@ -163,7 +163,65 @@ def get_revenue_by_localities(
             detail={"error": {"code": "CALCULATION_ERROR", "message": f"Error calculating revenue by locality: {str(e)}"}})
 
 
+@app.get("/trips/total/localities")
+def get_total_trips_by_localities(
+    db: Session = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis_client)
+):
+    cache_key = "trips:total:by_localities"
 
+    try:
+        # 1. Try to read from Redis
+        cached_data_str = redis_client.get(cache_key)
+        if cached_data_str:
+            print(f"Cache HIT for '{cache_key}'")
+            response_data_list = json.loads(cached_data_str)
+            return {"data": response_data_list}
+
+        # 2. Cache MISS: Query DB
+        print(f"Cache MISS for '{cache_key}'. Querying database...")
+        query = text("""
+            SELECT l.nombre AS localidad, COUNT(v.viaje_id) AS total_viajes
+            FROM viajes v
+            JOIN estaciones e ON v.estacion_abordaje_id = e.estacion_id
+            JOIN localidades l ON e.localidad_id = l.localidad_id
+            GROUP BY l.nombre;
+        """)
+        result_proxy = db.execute(query)
+        rows = result_proxy.fetchall()
+
+        response_data_list = [
+            {"localidad": row.localidad, "total_viajes": row.total_viajes}
+            for row in rows
+        ]
+
+        # 3. Save to Redis before returning
+        redis_client.setex(cache_key, CACHE_TTL_SECONDS, json.dumps(response_data_list))
+        print(f"'{cache_key}' saved to Redis with TTL of {CACHE_TTL_SECONDS}s.")
+
+        return {"data": response_data_list}
+
+    except redis.exceptions.RedisError as e:
+        print(f"ALERT: Redis error during operation: {e}. Serving from DB.")
+        query = text("""
+            SELECT l.nombre AS localidad, COUNT(v.viaje_id) AS total_viajes
+            FROM viajes v
+            JOIN estaciones e ON v.estacion_abordaje_id = e.estacion_id
+            JOIN localidades l ON e.localidad_id = l.localidad_id
+            GROUP BY l.nombre;
+        """)
+        result_proxy = db.execute(query)
+        rows = result_proxy.fetchall()
+        response_data_list = [
+            {"localidad": row.localidad, "total_viajes": row.total_viajes}
+            for row in rows
+        ]
+        return {"data": response_data_list}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"error": {"code": "DATABASE_ERROR", "message": f"Error querying the database: {str(e)}"}}
+        )
 
 
 
