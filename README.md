@@ -41,7 +41,7 @@ This project simulates a recharge system (like TransMilenio cards) using a distr
 
 ## ✨ Project Highlights
 
-* **Significant Performance Boost:** Achieved up to **~25x latency reduction** (e.g., from 69.5ms to 2.77ms) on critical endpoints by implementing a Redis caching layer.
+* **Significant Performance Boost:** Achieved up to **~25x latency reduction** (e.g., from 69.52ms to 2.76ms) on critical endpoints by implementing a Redis caching layer.
 * **Distributed Architecture:** Successfully designed and deployed a system with separate services (API, Database, Cache) communicating over a virtual network.
 * **Database Optimization:** Utilized stored procedures in PostgreSQL for complex operations, reducing API-side logic.
 * **Comprehensive Documentation:** Includes detailed setup (see `DEPLOYMENT.md`), architecture diagrams, API documentation, and latency test procedures.
@@ -64,7 +64,7 @@ The core components are:
 
 ##  📁 Project Structure mvp
 ```bash
-travel-recharge-api/  # Or your API repository name
+travel-recharge-api/  
 ├── app/
 │   ├── main.py             # FastAPI application instance and routers
 │   ├── database.py         # Database session management, connection
@@ -76,13 +76,13 @@ travel-recharge-api/  # Or your API repository name
 ├── tests/                  # Directory for automated tests (coming soon, future work)
 │   ├── unit/
 │   └── integration/ 
-├── assets/                 # For static assets like images, diagrams
+├── assets/             
 │   ├── diagrams/
-│   └── latency_optimization_redis.png # Example location for your graph
+│   └── latency_optimization_redis.png 
 ├── .env.postgres.example   # Example environment variables for PostgreSQL
 ├── .env.redis.example      # Example environment variables for Redis
 ├── requirements.txt        # Python dependencies for the project
-├── .gitignore              # Specifies intentionally untracked files that Git should ignore
+├── .gitignore          
 ├── README.md               # This file: overview, setup, and usage instructions
 ├── DEPLOYMENT.md           # Detailed deployment and setup guide
 └── LICENSE                 # Contains the full text of the MIT License
@@ -181,13 +181,13 @@ sequenceDiagram
 ## 🚀 Getting Started & Setup
 To get this project set up and running, including all prerequisites, database setup (which is in a separate repository), Redis setup, and API configuration:
 
-### ➡️ Please refer to the detailed [DEPLOYMENT.md](deplyment.md) guide.
+### ➡️ Please refer to the detailed [DEPLOYMENT.md](deployment.md) guide.
 
 A brief overview of tools you'll generally need: Python 3.8+, Git, Docker, and VirtualBox (for the original multi-VM setup).
 ---
 ## 🔬 Latency Testing
 This project includes scripts to demonstrate and test the latency improvements achieved with Redis caching.
-Note: Ensure the application environment is fully set up and the API is running as per the [DEPLOYMENT.md](deplyment.md) guide before executing these tests.
+Note: Ensure the application environment is fully set up and the API is running as per the [DEPLOYMENT.md](deployment.md) guide before executing these tests.
 ### Running Latency Test Scripts
 - ### For cacheable endpoints:
   ```bash
@@ -278,7 +278,6 @@ FastAPI automatically generates interactive API documentation, accessible once t
 --- 
 
 ## 🔮 Future Work (Pending Tasks)
-*This section can also link to GitHub Issues if you create them for these tasks.*
 
 1. **Spring Boot Version:** Develop an equivalent API in Spring Boot (new repository) with Spring Security.
 2. **Go Version:** Create a Go implementation for performance comparison.
@@ -293,14 +292,14 @@ FastAPI automatically generates interactive API documentation, accessible once t
 ---
 ## 📄 License
 This project is licensed under the MIT License. See the `LICENSE` file for full details.
-(Ensure you have a file named `LICENSE` or `[LICENSE](LICENSE.md)` in your repository root with the MIT license text).
+(Ensure you have a file named `LICENSE` or [LICENSE](LICENSE) in your repository root with the MIT license text).
 
 ## 🙏 Acknowledgments
-- FastAPI Documentation
-- SQLAlchemy Documentation
-- Psycopg Documentation
-- Docker Documentation
-- Redis Documentation
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
+- [Psycopg Documentation](https://www.psycopg.org/docs/)
+- [Docker Documentation](https://docs.docker.com/)
+- [Redis Documentation](https://redis.io/docs/latest/)
 
 ## 🤝 Contributing
 Contributions, issues, and feature requests are welcome!
