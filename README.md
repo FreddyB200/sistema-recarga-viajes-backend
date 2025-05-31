@@ -202,6 +202,9 @@ Follow the prompts to select an endpoint and specify the number of iterations.
 ### Cached Endpoint Example: `/finance/revenue`
 The `/finance/revenue` endpoint now uses Redis for caching. This significantly reduces latency for repeated requests. The cache is automatically invalidated after a specified TTL.
 
+![image](https://github.com/user-attachments/assets/7b048563-fc4c-4069-ad45-d9d77446313e)
+
+---
 #### Example:
 Install curl if not available:
 ```bash
