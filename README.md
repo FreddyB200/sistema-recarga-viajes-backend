@@ -1,36 +1,109 @@
 # Travel Recharge API – Distributed Systems Lab
+
 This project simulates a recharge system (like TransMilenio cards) using a distributed architecture with FastAPI, PostgreSQL, and Redis. It demonstrates caching, database logic optimization, and API development using modern Python tools.
 
-> **Goal**  
-> Build, deploy and test a simple distributed architecture:
-> - **FastAPI** REST API  
-> - **PostgreSQL** relational database (Docker)  
-> - **Redis** in-memory cache (Docker) 
+> **Project Goal:** Build, deploy, and test a simple distributed architecture featuring:
+> * **FastAPI** REST API
+> * **PostgreSQL** relational database (Dockerized, in a separate repository)
+> * **Redis** in-memory cache (Dockerized or local instance)
 
 ---
 
 ## 📖 Table of Contents
 
-1. [Context](#context)  
-2. [Architecture Diagrams](#architecture)  
-   - [Network Topology](#network-topology)  
-   - [Container](#container)  
-   - [Request flow](#request-flow)
-3. [Prerequisites](#prerequisites)  
-4. [Installation](#installation)   
-5. [License](#license)  
-6. [Pending Tasks](#pending-tasks)
+1.  [✨ Project Highlights](#project-highlights)
+2.  [🎯 Core Objective](#core-objective)
+3.  [🛠️ Technologies Used & Justification](#technologies-used--justification)
+4.  [🏗️ Architecture Overview](#architecture-overview)
+    * [Network Topology](#network-topology-diagram)
+    * [Container Diagram](#container-diagram)
+    * [Request Flow (Caching Example)](#request-flow-diagram)
+5.  [🚀 Getting Started & Setup](#getting-started--setup)
+6.  [🔬 Latency Testing](#latency-testing)
+    * [Running Latency Test Scripts](#running-latency-test-scripts)
+    * [Interpreting Results (Cache HIT vs. MISS)](#interpreting-results-cache-hit-vs-miss)
+    * [Example: Caching Strategy](#example-caching-strategy)
+    * [Latency Testing Results Examples](#latency-testing-results-examples)
+    * [Further Testing with Curl and Apache Benchmark (ab)](#further-testing-with-curl-and-apache-benchmark-ab)
+7.  [📚 API Documentation & Endpoints](#api-documentation--endpoints)
+    * [Interactive API Docs](#interactive-api-docs)
+    * [Main Endpoints Overview](#main-endpoints-overview)
+8.  [📁 Project Structure](#project-structure)
+9.  [💡 Lessons Learned](#lessons-learned)
+10. [🔮 Future Work (Pending Tasks)](#future-work-pending-tasks)
+11. [📄 License](#license)
+12. [🙏 Acknowledgments](#acknowledgments)
+13. [🤝 Contributing](#contributing)
+14. [📱 Mobile Readability Note for Diagrams](#mobile-readability-note-for-diagrams)
+
 
 ---
 
-## Context
+## ✨ Project Highlights
 
-Modern systems need low-latency, high-throughput data access.  
-- **PostgreSQL** provides durability, consistency and complex queries.  
-- **Redis** sits as a cache layer, speeding up repeated reads (e.g. stats, aggregates).  
-- **FastAPI** ties it all together with async endpoints.
+* **Significant Performance Boost:** Achieved up to **~25x latency reduction** (e.g., from 69.5ms to 2.77ms) on critical endpoints by implementing a Redis caching layer.
+* **Distributed Architecture:** Successfully designed and deployed a system with separate services (API, Database, Cache) communicating over a virtual network.
+* **Database Optimization:** Utilized stored procedures in PostgreSQL for complex operations, reducing API-side logic.
+* **Comprehensive Documentation:** Includes detailed setup (see `DEPLOYMENT.md`), architecture diagrams, API documentation, and latency test procedures.
 
-## Architecture
+_Visual evidence of latency improvement:_
+![Latency Improvement Graph](https://github.com/user-attachments/assets/35d4cdc5-a17a-4bf1-a095-56be76818f7c)
+
+---
+
+## 🎯 Core Objective
+
+Modern systems demand low-latency, high-throughput data access. This project was undertaken as part of a Distributed Systems Lab to build, deploy, and test a simple distributed architecture that addresses these needs.
+
+The core components are:
+- **PostgreSQL:** Provides data durability, consistency, and the ability to perform complex queries.
+- **Redis:** Serves as an in-memory cache layer, dramatically speeding up repeated read operations (e.g., statistics, aggregates).
+- **FastAPI:** Ties everything together, exposing asynchronous REST endpoints for the application logic.
+
+---
+
+##  📁 Project Structure mvp
+```bash
+travel-recharge-api/  # Or your API repository name
+├── app/
+│   ├── main.py             # FastAPI application instance and routers
+│   ├── database.py         # Database session management, connection
+│   ├── models.py           # SQLAlchemy models / Pydantic models for DB representation
+│   └── dependencies.py     # Common dependencies for FastAPI's dependency injection
+├── scripts/                # Utility scripts (e.g., latency_test.py)
+│   ├── latency_test.py
+│   └── latency_non_cacheable.py
+├── tests/                  # Directory for automated tests (coming soon, future work)
+│   ├── unit/
+│   └── integration/ 
+├── assets/                 # For static assets like images, diagrams
+│   ├── diagrams/
+│   └── latency_optimization_redis.png # Example location for your graph
+├── .env.postgres.example   # Example environment variables for PostgreSQL
+├── .env.redis.example      # Example environment variables for Redis
+├── requirements.txt        # Python dependencies for the project
+├── .gitignore              # Specifies intentionally untracked files that Git should ignore
+├── README.md               # This file: overview, setup, and usage instructions
+├── DEPLOYMENT.md           # Detailed deployment and setup guide
+└── LICENSE                 # Contains the full text of the MIT License
+```
+
+---
+
+## 🛠️ Technologies Used & Justification
+
+- **FastAPI**: Chosen for its high performance, native `async` support, automatic data validation, and interactive API documentation (Swagger UI & ReDoc), making it ideal for modern APIs and rapid development.
+- **PostgreSQL**: A powerful open-source relational database, selected for its transactional integrity (ACID compliance), support for complex queries, and robust features like stored procedures.
+- **Redis**: An in-memory data structure store, used here as a cache to significantly reduce latency for frequently accessed, read-heavy data, thereby lessening the load on PostgreSQL.
+- **Docker**: Utilized for containerizing PostgreSQL and (optionally) Redis, simplifying environment setup, ensuring consistency across different systems, and facilitating deployment.
+- **VirtualBox & Alpine Linux**: The services (API, Redis, PostgreSQL) were initially deployed on separate lightweight Alpine Linux VMs within VirtualBox, communicating via a configured internal network to simulate a true distributed environment.
+
+---
+
+## 🏗️ Architecture Overview
+
+_See the mobile readability note at the end of this README for these diagrams._
+
 ### Network Topology Diagram
 ```mermaid
 graph TB
@@ -43,6 +116,8 @@ graph TB
   VM1 <-->|eth1 ↔ eth1<br>Direct Communication| VM2
   VM1 <-->|eth1 ↔ eth1<br>Direct Communication| VM3
 ```
+[View Network Topology in High Resolution](https://www.google.com/search?q=assets/diagrams/network_topology.png)
+
 ### Container Diagram
 ```mermaid
 %% C4 Container Diagram with Database Grouping
@@ -61,10 +136,11 @@ Container_Boundary(databases, "Databases") {
 Rel(User, FastAPI_App, "HTTP / HTTPS API")
 Rel(FastAPI_App, Redis, "GET / SET (redis-py)")
 Rel(FastAPI_App, PostgreSQL, "INSERT / SELECT (psycopg2 or SQLAlchemy)")
-
 ```
----
+[View Container Diagram in High Resolution](https://www.google.com/search?q=assets/diagrams/network_topology.png)
+
 ### Request Flow Diagram
+(Illustrating Cache Hit/Miss for Read Operations and Write Operations)
 ```mermaid
 sequenceDiagram
     participant C as Client (Browser/Postman)
@@ -99,328 +175,140 @@ sequenceDiagram
     F->>R: 6. DEL card:789:balance
     F->>R: 7. DEL user:456:recharges
     F-->>C: 8. 201 Created
-
 ```
+#### [View Request Flow Diagram in High Resolution](https://www.google.com/search?q=assets/diagrams/request_flow_diagram.png)
 ---
-## Project Structure
-```bash
-SISTEMA-RECARGA-VIAJES-BACKEND/
-├── app/
-│   ├── database.py       # Database connection and setup
-│   ├── dependencies.py   # Dependency injection for database sessions
-│   ├── main.py           # FastAPI application and endpoints
-│   ├── models.py         # Database models (if used)
-│   └── __pycache__/      # Compiled Python files
-├── requirements.txt      # Python dependencies
-├── .gitignore            # Git ignore rules
-├── DEPLOYMENT.md         # Deployment guide
-└── README.md             # Project documentation
-```
+## 🚀 Getting Started & Setup
+To get this project set up and running, including all prerequisites, database setup (which is in a separate repository), Redis setup, and API configuration:
 
-## Scripts for Latency Testing
+### ➡️ Please refer to the detailed [DEPLOYMENT.md](deplyment.md) guide.
 
-### Cached Endpoints
-Use the `latency_test.py` script to test the latency of cached endpoints. You can specify the number of iterations to simulate multiple requests.
-
-#### Usage:
-```bash
-python scripts/latency_test.py
-```
-
-Follow the prompts to select an endpoint and specify the number of iterations.
-
-### Non-Cached Endpoints
-Use the `latency_non_cacheable.py` script to test the latency of non-cached endpoints. Similar to the cached script, you can specify the number of iterations.
-
-#### Usage:
-```bash
-python scripts/latency_non_cacheable.py
-```
-
-Follow the prompts to select an endpoint and specify the number of iterations.
-
+A brief overview of tools you'll generally need: Python 3.8+, Git, Docker, and VirtualBox (for the original multi-VM setup).
 ---
+## 🔬 Latency Testing
+This project includes scripts to demonstrate and test the latency improvements achieved with Redis caching.
+Note: Ensure the application environment is fully set up and the API is running as per the [DEPLOYMENT.md](deplyment.md) guide before executing these tests.
+### Running Latency Test Scripts
+- ### For cacheable endpoints:
+  ```bash
+  python scripts/latency_test.py
+  ```
+  Follow the prompts to select the endpoint and number of iterations.
 
-### Cached Endpoint Example: `/finance/revenue`
-The `/finance/revenue` endpoint now uses Redis for caching. This significantly reduces latency for repeated requests. The cache is automatically invalidated after a specified TTL.
+- ### For non-cacheable endpoints:
+  ```bash
+  python scripts/latency_non_cacheable.py
+  ```
+  Follow the prompts.
 
-## Database Repository
+### Interpreting Results (Cache HIT vs. MISS)
 
-The database for this project is managed in a separate repository. You can find it here:
+* **Cache MISS**: The first request to a cacheable endpoint will be slower, as the API needs to query the PostgreSQL database and then store the result in Redis.
+* **Cache HIT**: Subsequent identical requests will be much faster, as the data is served directly from the Redis in-memory cache.
 
-[Database Repository](https://github.com/FreddyB200/travel-recharge-database.git)
+### Example: Caching Strategy
 
----
+* **What is cached?**
+    Responses from aggregate endpoints that are read-heavy and whose data doesn't change with every request (e.g., `/trips/total`, `/finance/revenue`).
+* **Invalidation strategy:**
+    A TTL (Time To Live) is set for cached items in Redis (e.g., 300 seconds). Data expires automatically after this period, ensuring a balance between performance and data freshness.
 
-## Getting Started
+### Latency Testing Results Examples
 
-### Prerequisites
-- VirtualBox VMs with Ubuntu/Alpine or any linux OS
-- Docker & Docker Compose installed on each VM
-- SSH keys configured for password-less login
-- Git & GitHub account
-- Python 3.8 or higher
-- pip (Python package manager)
+_This data was collected from the original test environment._
 
-## Installation and How to Run Latency Tests (Step-by-Step Guide)
+* **Cacheable Endpoints:**
+    * _Endpoint: `/trips/total`_
+        * First Request (Cache MISS): 57.34 ms
+        * Second Request (Cache HIT): 3.2 ms
+        * Third Request (Cache HIT): 6.1 ms
+    * _Endpoint: `/trips/finance/revenue`_
+        * First Request (Cache MISS): 62.23 ms
+        * Second Request (Cache HIT): 2.55 ms
+* **Non-Cacheable Endpoints (average latency):**
+    * `/users/count`: 8.11 ms
+    * `/users/active/count`: 9.11 ms
+    * `/users/latest`: 6.69 ms
 
-Follow these steps to replicate the latency reduction results using Redis as a cache.
+### Further Testing with Curl and Apache Benchmark (ab)
 
-### 1. Install Redis
+For more rigorous load testing (ensure `curl` and `apache2-utils` are installed):
 
-#### Debian/Ubuntu:
-```bash
-sudo apt update
-sudo apt install redis-server -y
-sudo systemctl enable redis-server
-sudo systemctl start redis-server
-```
-
-#### Alpine Linux:
-```bash
-apk update
-apk add redis
-rc-update add redis
-rc-service redis start
-```
-
-Verify Redis is running:
-```bash
-redis-cli ping
-# Should respond: PONG
-```
-
-### 2. Install Python dependencies
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### 3. Configure environment variables
-Copy `.env.postgres.example` and `.env.redis.example` to `.env` and adjust the values for your environment.
-
-### 4. Start the API
-- ### Development mode (auto-reload enabled)
- ```bash
-fastapi dev app/main.py --host 0.0.0.0 --port 8000
-```
-
-- ### Production mode (no auto-reload)
-```bash
-fastapi run app/main.py --host 0.0.0.0 --port 8000
-```
-- ### Run with Uvicorn
-```bash
-uvicorn app.main:app --reload
-```
-
-### 5. Run latency tests
-
-#### For cacheable endpoints:
-```bash
-python scripts/latency_test.py
-```
-Follow the prompts to select the endpoint and number of iterations.
-
-#### For non-cacheable endpoints:
-```bash
-python scripts/latency_non_cacheable.py
-```
-
-### 6. Interpreting results
-- **Cache MISS**: The first request is slower, as it queries PostgreSQL.
-- **Cache HIT**: Subsequent requests are much faster, as data comes from Redis.
-
-#### What data is cached and invalidation strategy
-- **What is cached?**
-  Responses from aggregate endpoints like `/trips/total` and `/finance/revenue` (aggregated, read-only data).
-- **Invalidation strategy:**
-  A TTL (Time To Live) is set in Redis. Cached data expires automatically after a defined period (e.g., 300 seconds), ensuring data freshness.
-
-
-## See the API Documentation at
-
-- http://127.0.0.1:8000/docs
-- http://127.0.0.1:8000/redoc
+1.  **Test with `curl` (single request):**
+    ```bash
+    curl -X GET http://localhost:8000/finance/revenue
+    ```
+2.  **Test with `ab` (Apache Benchmark):**
+    ```bash
+    ab -n 100 -c 10 http://localhost:8000/finance/revenue
+    ```
+    * `-n 100`: Total requests. `-c 10`: Concurrent requests.
 
 ---
 
-## Latency Testing Results Examples
+## 📚 API Documentation & Endpoints
 
-### Cacheable Endpoints
+### Interactive API Docs
 
-#### Endpoint: `/trips/total`
-- **First Request (Cache MISS)**: 57.34 ms
-- **Second Request (Cache HIT)**: 3.2 ms
-- **Third Request**: 6.1 ms
+FastAPI automatically generates interactive API documentation, accessible once the API is running:
 
-#### Endpoint: `/trips/finance/revenue`
-- **First Request (Cache MISS)**: 62.23 ms
-- **Second Request (Cache HIT)**: 2.55 ms
+* **Swagger UI:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+* **ReDoc:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
 
-### Non-Cacheable Endpoints
+### Main Endpoints Overview
 
-#### Endpoint: `/users/count`
-- **Average Latency**: 8.11 ms
-
-#### Endpoint: `/users/active/count`
-- **Average Latency**: 9.11 ms
-
-#### Endpoint: `/users/latest`
-- **Average Latency**: 6.69 ms
-
----
-
-
-
-![image](https://github.com/user-attachments/assets/7b048563-fc4c-4069-ad45-d9d77446313e)
-
----
-#### With curl and Apache Benchmarking (ab):
-Install curl if not available:
-```bash
-sudo apt update && sudo apt install curl -y
-```
-
-For Alpine Linux:
-```bash
-apk update && apk add curl apache2-utils
-```
-
-Test the endpoint with curl:
-```bash
-curl -X GET http://localhost:8000/finance/revenue
-```
-
-Test the endpoint with ab (Apache Benchmark):
-```bash
-ab -n 100 -c 10 http://localhost:8000/finance/revenue
-```
-
-#### Explanation of `ab` parameters:
-- `-n 100`: Specifies the total number of requests to send to the server. In this case, 100 requests will be sent.
-- `-c 10`: Specifies the number of concurrent requests to send at the same time. In this case, 10 requests will be sent simultaneously.
-
-This command simulates a load test to measure the server's performance under concurrent requests.
----
-
+| Endpoint                | HTTP Method | Brief Description                             | Example URL (if running locally)          |
+|-------------------------|-------------|-----------------------------------------------|---------------------------------------------|
+| `/trips/total`          | GET         | Returns the total number of registered trips. | `http://localhost:8000/trips/total`         |
+| `/finance/revenue`      | GET         | Returns total revenue from recharges.         | `http://localhost:8000/finance/revenue`     |
+| `/users/active/count`   | GET         | Counts active users in the system.            | `http://localhost:8000/users/active/count`  |
 
 
 ---
-## Technology Justification
+## 💡 Lessons Learned
+- **Redis from Scratch:** The journey involved more than learning syntax; it was about understanding Redis's in-memory nature, TTLs, persistence options, and its profound impact on reducing API latency for specific use cases.
+- **Integrating Redis Strategically:** Realized Redis isn't just a technical add-on but a strategic component for offloading database pressure and enhancing user experience for frequently accessed, read-heavy data.
+- **Value of Stored Procedures:** Implemented stored procedures in the PostgreSQL database repository to encapsulate complex business logic directly within the database, leading to optimized data operations and leaner API-side code.
+- **VM Internal Networking:** Shifted from NAT to an internal network for inter-VM communication, which proved more efficient, secure for service-to-service calls, and simplified service discovery within the distributed setup.
+- **Additional Challenges & Learnings:**
+   - Fine-tuning Redis persistence and considering security implications.
+   - Balancing cache TTLs for data freshness versus performance gains.
+   - The importance of clear documentation and automatable tests to enable others (and my future self) to easily replicate results and understand the system.
 
-- **FastAPI**: Chosen for its speed, async support, and automatic documentation, making it ideal for modern APIs and rapid prototyping.
-- **PostgreSQL**: Provides transactional integrity, complex queries, and robust support for stored procedures.
-- **Redis**: Enables caching of expensive queries, reducing latency and database load.
-- **Docker**: Simplifies environment replication and deployment across different systems.
+--- 
 
-## Main Endpoints
+## 🔮 Future Work (Pending Tasks)
+*This section can also link to GitHub Issues if you create them for these tasks.*
 
-| Endpoint                  | HTTP Method | Brief Description                                 | Example URL                              |
-|---------------------------|-------------|---------------------------------------------------|------------------------------------------|
-| `/trips/total`            | GET         | Returns the total number of registered trips.      | `http://localhost:8000/trips/total`      |
-| `/finance/revenue`        | GET         | Returns the total revenue generated by recharges.  | `http://localhost:8000/finance/revenue`  |
-| `/users/active/count`     | GET         | Counts the active users in the system.             | `http://localhost:8000/users/active/count`|
-
-
-
-
-
-
-
-## Additional Deployment Notes
-
-- Make sure your database is running and accessible with the credentials provided in the `.env` file.
-- You can use the FastAPI interactive documentation at `http://127.0.0.1:8000/docs` to test the API endpoints.
-- If you encounter issues, check the logs for detailed error messages.
-
-## Alternative Ways to Run the Application
-
-You can also run the application using the FastAPI CLI (if installed):
-
-```bash
-fastapi dev app/main.py --host 0.0.0.0 --port 8000
-```
-
-Or:
-
-```bash
-fastapi run app/main.py --host 0.0.0.0 --port 8000
-```
-
-The application will be available at `http://127.0.0.1:8000`.
-
-## Running Redis with Docker (Alternative)
-
-If you prefer to run Redis in a Docker container:
-
-```bash
-docker run -d --name redis -p 6379:6379 redis:latest
-```
-
-## Troubleshooting Common Issues
-
-- **Connection refused**: Ensure the Redis server is running and the port is correct.
-- **Timeout errors**: Check if the Redis server is under heavy load or if there are network issues.
-- **Data not found**: Verify the cache keys and ensure they match between the application and Redis.
-## Pending Tasks
-
-Here are some ideas and tasks to expand and improve the project:
-
-1. **New Repository: Spring Boot Version**
-   - Create a new repository for the API implemented in Spring Boot.
-   - Apply security with Spring Security and aim for a more robust codebase.
-
-2. **Version in Go**
-   - Develop a version of the API in Go to compare performance with Python.
-
-3. **CI/CD Pipeline**
-   - Implement continuous integration and deployment pipelines using GitHub Actions or similar tools.
-
-4. **Dockerization**
-   - Containerize the application using Docker for easier deployment and scalability.
-
-5. **Database Backups**
-   - Set up automated backups of the database to another server.
-   - Decide whether to document this in the README of this repository or the API repository.
-
-6. **Cloud Integration**
-   - Integrate the application with cloud services like AWS, Google Cloud, or Azure.
-
-7. **Automated Tests**
-   - Write unit, integration, and end-to-end tests to ensure the reliability of the API.
-
-8. **Logging**
-   - Implement structured logging to monitor and debug the application effectively.
-
-9. **Performance Testing**
-   - Use tools like Locust to simulate user load and measure the performance of the API.
-
-## Lessons Learned
-
-- **Redis from scratch:**
-  Learning Redis was a trial-and-error process, not just its syntax and commands, but understanding how it works internally (in-memory storage, TTL, persistence, etc.) and its real impact on API latency.
-- **Integration and rationale for Redis:**
-  Beyond technical integration, I realized Redis' value in offloading the database and improving user experience for repeated queries.
-- **Stored procedures:**
-  I decided to implement stored procedures in PostgreSQL (see the database repo) to optimize complex operations and reduce API-side logic.
-- **Internal network between VMs:**
-  Initially, I used NAT to connect the virtual machines, but found that an internal network was more efficient and secure for direct service communication, simplifying name resolution and avoiding port conflicts.
-- **Additional challenges:**
-  - Configuring Redis persistence and security.
-  - Tuning TTL for a balance between data freshness and efficiency.
-  - Documenting and automating tests so other developers can easily replicate results.
-
----   
-
-## Acknowledgments
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
-- [Docker Documentation](https://docs.docker.com/)
-- [Redis Documentation](https://redis.io/docs/latest/)
-
+1. **Spring Boot Version:** Develop an equivalent API in Spring Boot (new repository) with Spring Security.
+2. **Go Version:** Create a Go implementation for performance comparison.
+3. **CI/CD Pipeline:** Implement CI/CD using GitHub Actions.
+4. **Full Dockerization of API:** Containerize the FastAPI application for streamlined deployment.
+5. **Automated Database Backups:** Configure and document a backup strategy.
+6. **Cloud Deployment:** Explore deployment to a cloud platform (AWS, GCP, Azure) potentially using Kubernetes.
+7. **Comprehensive Automated Tests:** Write unit, integration, and end-to-end tests.
+8. **Structured Logging:** Implement robust logging for monitoring and debugging.
+9. **Advanced Performance Testing:** Use tools like Locust for detailed load simulation. ... (Your other tasks like security enhancements, more advanced queries etc.)
+    
 ---
+## 📄 License
+This project is licensed under the MIT License. See the `LICENSE` file for full details.
+(Ensure you have a file named `LICENSE` or `[LICENSE](LICENSE.md)` in your repository root with the MIT license text).
 
-## License
-This project is licensed under the MIT License. See the LICENSE file for details.
+## 🙏 Acknowledgments
+- FastAPI Documentation
+- SQLAlchemy Documentation
+- Psycopg Documentation
+- Docker Documentation
+- Redis Documentation
+
+## 🤝 Contributing
+Contributions, issues, and feature requests are welcome!
+For major changes, please open an issue first to discuss what you would like to change.
+Please make sure to update tests as appropriate. (Even if tests are future work, this is good to have).
+
+Alternatively, if it's a personal/portfolio project and you're not seeking contributions:
+"This is a personal project for learning and portfolio purposes. However, suggestions and feedback via GitHub Issues are always welcome!"
+
+## 📱 Mobile Readability Note for Diagrams
+**Note for mobile users:** For the best viewing experience of the architecture diagrams, it is recommended to rotate your device to landscape mode or use the provided links (e.g., in the `assets/diagrams/` folder) to view the high-resolution versions, which allow for pinch-to-zoom.
