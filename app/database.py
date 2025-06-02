@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
 
-load_dotenv(".env.postgres")
+load_dotenv()
 
 DB = os.getenv("DB_NAME")
 USER = os.getenv("DB_USER")
