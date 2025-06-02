@@ -1,24 +1,22 @@
 from fastapi import FastAPI, Depends, HTTPException, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-# import models # If you don't use SQLAlchemy models to create tables or for ORM, you can comment this out.
-from database import engine # Make sure your database.py is configured correctly
-from dependencies import get_db
-from decimal import Decimal # To handle SUM results
+# import models # Kept commented out since schema is managed externally
+from database import engine # Ensure database.py is properly configured
+from dependencies import get_db, get_redis_client # Ensure get_redis_client is imported
+from decimal import Decimal # For handling SUM results
 
-import json # For serialization/deserialization
-import redis # For the type hint of the Redis dependency
-from dependencies import get_db, get_redis_client # <-- MAKE SURE TO IMPORT get_redis_client
+import json
+import redis # For Redis dependency type hint
 
 
 # Constant for cache TTL
 CACHE_TTL_SECONDS = 60 # 1 minute cache
 
-# models.Base.metadata.create_all(bind=engine) # Consider commenting or removing this line if the DB is already created and you don't use models to create tables.
+# models.Base.metadata.create_all(bind=engine) # Kept commented, schema is created externally
 
 app = FastAPI()
 
-# Your /ping-db endpoint (make sure it works with your config)
 @app.get("/ping-db")
 def ping_db(db: Session = Depends(get_db)):
     try:
@@ -27,22 +25,27 @@ def ping_db(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail={"error": {"code": "DATABASE_CONNECTION_ERROR", "message": f"Database connection error: {str(e)}"}})
 
-# --- REQUIRED ENDPOINTS (CORRECTED ACCORDING TO ERD) ---
+# --- REQUIRED ENDPOINTS (UPDATED FOR NEW SCHEMA) ---
 
 @app.get("/users/count")
 def get_users_count(db: Session = Depends(get_db)):
     try:
-        # Using 'usuarios' in lowercase according to PostgreSQL convention for unquoted identifiers
-        result = db.execute(text("SELECT COUNT(*) AS total_users FROM usuarios;")).scalar_one_or_none()
+        result = db.execute(text("SELECT COUNT(*) AS total_users FROM users;")).scalar_one_or_none()
         return {"total_users": result if result is not None else 0}
     except Exception as e:
         raise HTTPException(status_code=500, detail={"error": {"code": "DATABASE_ERROR", "message": f"Error querying the database: {str(e)}"}})
 
 @app.get("/users/active/count")
 def get_active_users_count(db: Session = Depends(get_db)):
+    # We assume an "active user" is a user with at least one 'active' card.
+    # Replaced stored procedure call with direct query.
+    query = text("""
+        SELECT COUNT(DISTINCT u.user_id) AS active_users_count
+        FROM users u
+        JOIN cards c ON u.user_id = c.user_id
+        WHERE c.status = 'active';
+    """)
     try:
-        # Call the stored procedure for active users count
-        query = text("CALL get_active_users_count();")
         result = db.execute(query).scalar_one_or_none()
         return {"active_users_count": result if result is not None else 0}
     except Exception as e:
@@ -51,16 +54,16 @@ def get_active_users_count(db: Session = Depends(get_db)):
 @app.get("/users/latest")
 def get_latest_user(db: Session = Depends(get_db)):
     query = text("""
-        SELECT usuario_id, nombre, apellido
-        FROM usuarios
-        ORDER BY fecha_registro DESC
+        SELECT user_id, first_name, last_name
+        FROM users
+        ORDER BY registration_date DESC, user_id DESC
         LIMIT 1;
-    """)
+    """) # Added user_id DESC for deterministic tie-breaker
     try:
         result = db.execute(query).mappings().first()
         if result:
-            full_name = f"{result['nombre']} {result['apellido']}"
-            return {"latest_user": {"usuario_id": result['usuario_id'], "full_name": full_name}}
+            full_name = f"{result['first_name']} {result['last_name']}"
+            return {"latest_user": {"user_id": result['user_id'], "full_name": full_name}}
         else:
             return Response(status_code=204) # No Content
     except Exception as e:
@@ -69,38 +72,32 @@ def get_latest_user(db: Session = Depends(get_db)):
 @app.get("/trips/total")
 def get_total_trips(
     db: Session = Depends(get_db),
-    redis_client: redis.Redis = Depends(get_redis_client) # Inject Redis client
+    redis_client: redis.Redis = Depends(get_redis_client)
 ):
-    cache_key = "trips:total" # Redis key
+    cache_key = "trips:total"
 
     try:
-        # 1. Try to read from Redis
         cached_data_str = redis_client.get(cache_key)
         if cached_data_str:
             print(f"Cache HIT for '{cache_key}'")
-            total_trips = json.loads(cached_data_str) # Convert JSON string to number
+            total_trips = json.loads(cached_data_str)
             return {"total_trips": total_trips}
 
-        # 2. Cache MISS: Query DB
         print(f"Cache MISS for '{cache_key}'. Querying database...")
-        result = db.execute(text("SELECT COUNT(*) AS total_trips FROM viajes;")).scalar_one_or_none()
+        result = db.execute(text("SELECT COUNT(*) AS total_trips FROM trips;")).scalar_one_or_none()
         total_trips = result if result is not None else 0
 
-        # 3. Save to Redis before returning
-        # Convert number to JSON string for storage
         redis_client.setex(cache_key, CACHE_TTL_SECONDS, json.dumps(total_trips))
         print(f"'{cache_key}' saved to Redis with TTL of {CACHE_TTL_SECONDS}s.")
         
         return {"total_trips": total_trips}
 
     except redis.exceptions.RedisError as e:
-        # Fallback if Redis fails (but initial connection in dependencies.py worked)
         print(f"ALERT: Redis error during operation: {e}. Serving from DB.")
-        result = db.execute(text("SELECT COUNT(*) AS total_trips FROM viajes;")).scalar_one_or_none()
+        result = db.execute(text("SELECT COUNT(*) AS total_trips FROM trips;")).scalar_one_or_none()
         total_trips = result if result is not None else 0
         return {"total_trips": total_trips}
     except Exception as e:
-        # Handle database errors or others not directly related to Redis
         raise HTTPException(status_code=500, detail={"error": {"code": "DATABASE_ERROR", "message": f"Error querying the database: {str(e)}"}})
 
 @app.get("/finance/revenue")
@@ -111,41 +108,44 @@ def get_total_revenue(
     cache_key = "finance:total_revenue"
 
     try:
-        # 1. Try to read from Redis
         cached_data_str = redis_client.get(cache_key)
         if cached_data_str:
             print(f"Cache HIT for '{cache_key}'")
             total_revenue = json.loads(cached_data_str)
             return {"total_revenue": total_revenue, "currency": "COP"}
 
-        # 2. Cache MISS: Query DB
         print(f"Cache MISS for '{cache_key}'. Querying database...")
         query = text("""
-            SELECT SUM(tf.valor) AS total_revenue
-            FROM viajes v
-            JOIN tarifas tf ON v.tarifa_id = tf.tarifa_id;
+            SELECT SUM(tf.value) AS total_revenue
+            FROM trips t
+            JOIN fares tf ON t.fare_id = tf.fare_id;
         """)
         result = db.execute(query).scalar_one_or_none()
-        total_revenue = result if result is not None else Decimal('0.00')
+        # total_revenue is Decimal if not None, or None.
+        total_revenue_float = 0.0
+        if result is not None:
+            total_revenue_float = float(result)
 
-        # 3. Save to Redis before returning
-        redis_client.setex(cache_key, CACHE_TTL_SECONDS, json.dumps(float(total_revenue)))
+        redis_client.setex(cache_key, CACHE_TTL_SECONDS, json.dumps(total_revenue_float))
         print(f"'{cache_key}' saved to Redis with TTL of {CACHE_TTL_SECONDS}s.")
 
-        return {"total_revenue": float(total_revenue), "currency": "COP"}
+        return {"total_revenue": total_revenue_float, "currency": "COP"}
 
     except redis.exceptions.RedisError as e:
         print(f"ALERT: Redis error during operation: {e}. Serving from DB.")
         query = text("""
-            SELECT SUM(tf.valor) AS total_revenue
-            FROM viajes v
-            JOIN tarifas tf ON v.tarifa_id = tf.tarifa_id;
+            SELECT SUM(tf.value) AS total_revenue
+            FROM trips t
+            JOIN fares tf ON t.fare_id = tf.fare_id;
         """)
         result = db.execute(query).scalar_one_or_none()
-        total_revenue = result if result is not None else Decimal('0.00')
-        return {"total_revenue": float(total_revenue), "currency": "COP"}
+        total_revenue_float = 0.0
+        if result is not None:
+            total_revenue_float = float(result)
+        return {"total_revenue": total_revenue_float, "currency": "COP"}
     except Exception as e:
         raise HTTPException(status_code=500, detail={"error": {"code": "CALCULATION_ERROR", "message": f"Error calculating total incomes: {str(e)}"}})
+
 @app.get("/finance/revenue/localities")
 def get_revenue_by_localities(
     db: Session = Depends(get_db),
@@ -161,13 +161,23 @@ def get_revenue_by_localities(
             return {"data": response_data_list, "currency": "COP"}
 
         print(f"Cache MISS for '{cache_key}'. Querying database...")
-        # Call the stored procedure for revenue by localities
-        query = text("SELECT * FROM get_revenue_by_localities();")
+        # Replaced stored procedure call with direct query joining trips -> fares, trips -> stations -> locations
+        query = text("""
+            SELECT loc.name AS locality, SUM(f.value) AS total_revenue
+            FROM trips t
+            JOIN fares f ON t.fare_id = f.fare_id
+            JOIN stations s ON t.boarding_station_id = s.station_id
+            JOIN locations loc ON s.location_id = loc.location_id
+            GROUP BY loc.name
+            ORDER BY total_revenue DESC;
+        """)
         result_proxy = db.execute(query)
-        rows = result_proxy.fetchall()
+        # Use .mappings().all() to get a list of dictionaries
+        rows = result_proxy.mappings().all() 
 
         response_data_list = [
-            {"localidad": row.localidad, "total_recaudado": float(row.total_recaudado)}
+            # Access fields by column/alias name
+            {"locality": row["locality"], "total_revenue": float(row["total_revenue"]) if row["total_revenue"] is not None else 0.0}
             for row in rows
         ]
 
@@ -178,11 +188,19 @@ def get_revenue_by_localities(
 
     except redis.exceptions.RedisError as e:
         print(f"ALERT: Redis error during operation: {e}. Serving from DB.")
-        query = text("CALL get_revenue_by_localities();")
+        query = text("""
+            SELECT loc.name AS locality, SUM(f.value) AS total_revenue
+            FROM trips t
+            JOIN fares f ON t.fare_id = f.fare_id
+            JOIN stations s ON t.boarding_station_id = s.station_id
+            JOIN locations loc ON s.location_id = loc.location_id
+            GROUP BY loc.name
+            ORDER BY total_revenue DESC;
+        """)
         result_proxy = db.execute(query)
-        rows = result_proxy.fetchall()
+        rows = result_proxy.mappings().all()
         response_data_list = [
-            {"localidad": row.localidad, "total_recaudado": float(row.total_recaudado)}
+            {"locality": row["locality"], "total_revenue": float(row["total_revenue"]) if row["total_revenue"] is not None else 0.0}
             for row in rows
         ]
         return {"data": response_data_list, "currency": "COP"}
@@ -190,7 +208,6 @@ def get_revenue_by_localities(
         raise HTTPException(
             status_code=500,
             detail={"error": {"code": "CALCULATION_ERROR", "message": f"Error calculating revenue by locality: {str(e)}"}})
-
 
 @app.get("/trips/total/localities")
 def get_total_trips_by_localities(
@@ -200,31 +217,31 @@ def get_total_trips_by_localities(
     cache_key = "trips:total:by_localities"
 
     try:
-        # 1. Try to read from Redis
         cached_data_str = redis_client.get(cache_key)
         if cached_data_str:
             print(f"Cache HIT for '{cache_key}'")
             response_data_list = json.loads(cached_data_str)
             return {"data": response_data_list}
 
-        # 2. Cache MISS: Query DB
         print(f"Cache MISS for '{cache_key}'. Querying database...")
+        # Adjusted table and column names: localities -> locations, locality_id -> location_id
         query = text("""
-            SELECT l.nombre AS localidad, COUNT(v.viaje_id) AS total_viajes
-            FROM viajes v
-            JOIN estaciones e ON v.estacion_abordaje_id = e.estacion_id
-            JOIN localidades l ON e.localidad_id = l.localidad_id
-            GROUP BY l.nombre;
+            SELECT loc.name AS locality, COUNT(t.trip_id) AS total_trips
+            FROM trips t
+            JOIN stations s ON t.boarding_station_id = s.station_id
+            JOIN locations loc ON s.location_id = loc.location_id 
+            GROUP BY loc.name
+            ORDER BY total_trips DESC;
         """)
         result_proxy = db.execute(query)
-        rows = result_proxy.fetchall()
+        rows = result_proxy.mappings().all() # Use .mappings().all()
 
         response_data_list = [
-            {"localidad": row.localidad, "total_viajes": row.total_viajes}
+            # Access by column/alias name
+            {"locality": row["locality"], "total_trips": row["total_trips"]}
             for row in rows
         ]
 
-        # 3. Save to Redis before returning
         redis_client.setex(cache_key, CACHE_TTL_SECONDS, json.dumps(response_data_list))
         print(f"'{cache_key}' saved to Redis with TTL of {CACHE_TTL_SECONDS}s.")
 
@@ -233,16 +250,17 @@ def get_total_trips_by_localities(
     except redis.exceptions.RedisError as e:
         print(f"ALERT: Redis error during operation: {e}. Serving from DB.")
         query = text("""
-            SELECT l.nombre AS localidad, COUNT(v.viaje_id) AS total_viajes
-            FROM viajes v
-            JOIN estaciones e ON v.estacion_abordaje_id = e.estacion_id
-            JOIN localidades l ON e.localidad_id = l.localidad_id
-            GROUP BY l.nombre;
+            SELECT loc.name AS locality, COUNT(t.trip_id) AS total_trips
+            FROM trips t
+            JOIN stations s ON t.boarding_station_id = s.station_id
+            JOIN locations loc ON s.location_id = loc.location_id
+            GROUP BY loc.name
+            ORDER BY total_trips DESC;
         """)
         result_proxy = db.execute(query)
-        rows = result_proxy.fetchall()
+        rows = result_proxy.mappings().all()
         response_data_list = [
-            {"localidad": row.localidad, "total_viajes": row.total_viajes}
+            {"locality": row["locality"], "total_trips": row["total_trips"]}
             for row in rows
         ]
         return {"data": response_data_list}
@@ -251,11 +269,3 @@ def get_total_trips_by_localities(
             status_code=500,
             detail={"error": {"code": "DATABASE_ERROR", "message": f"Error querying the database: {str(e)}"}}
         )
-
-
-
-
-
-
-
-

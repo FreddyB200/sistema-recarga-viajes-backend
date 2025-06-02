@@ -4,8 +4,7 @@ certifi==2025.4.26
 click==8.1.8
 dnspython==2.7.0
 email_validator==2.2.0
-fastapi==0.115.12
-fastapi-cli==0.0.7
+fastapi[standard]==0.115.12
 greenlet==3.2.1
 h11==0.16.0
 httpcore==1.0.9
