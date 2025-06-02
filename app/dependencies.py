@@ -1,5 +1,5 @@
 import redis.exceptions
-from database import SessionLocal
+from app.database import SessionLocal
 
 import redis
 import os

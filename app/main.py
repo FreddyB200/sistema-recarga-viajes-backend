@@ -2,8 +2,8 @@ from fastapi import FastAPI, Depends, HTTPException, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 # import models # Kept commented out since schema is managed externally
-from database import engine # Ensure database.py is properly configured
-from dependencies import get_db, get_redis_client # Ensure get_redis_client is imported
+from app.database import engine # Ensure database.py is properly configured
+from app.dependencies import get_db, get_redis_client # Ensure get_redis_client is imported
 from decimal import Decimal # For handling SUM results
 
 import json
