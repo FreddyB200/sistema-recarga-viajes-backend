@@ -1,8 +1,66 @@
 version: '3.8'
+
 services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:13
+    container_name: travel_postgres
+    environment:
+      POSTGRES_DB: travel_recharge_db
+      POSTGRES_USER: travel_user
+      POSTGRES_PASSWORD: travel_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U travel_user -d travel_recharge_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: travel_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Application
   api:
     build: .
+    container_name: travel_api
     ports:
       - "8000:8000"
-    env_file:
-      - ./api.env 
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=travel_recharge_db
+      - DB_USER=travel_user
+      - DB_PASSWORD=travel_password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: travel_network
