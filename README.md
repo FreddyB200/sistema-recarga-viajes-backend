@@ -169,19 +169,57 @@ pytest tests/test_users.py
 
 # Run with coverage report
 pytest --cov=app tests/
+
+# Run with verbose output
+pytest -v
+
+# Run specific test function
+pytest tests/test_users.py::test_get_users_count_empty
 ```
 
-### Latency Testing
-Run the included latency test scripts to measure performance:
-```bash
-python scripts/latency_test.py
-python scripts/latency_non_cacheable.py
+### Test Structure
+```
+tests/
+├── conftest.py           # Shared test fixtures and configuration
+├── unit/                 # Unit tests
+│   ├── test_users.py     # User endpoint tests
+│   ├── test_trips.py     # Trip endpoint tests
+│   ├── test_finance.py   # Finance endpoint tests
+│   └── test_health.py    # Health check tests
+└── integration/          # Integration tests (coming soon)
 ```
 
-### Load Testing
-Use Apache Benchmark for load testing:
+### Test Database
+- Tests use SQLite in-memory database
+- Each test gets a fresh database instance
+- No need to configure external database for testing
+- Database is automatically created and destroyed for each test
+
+### Mock Redis
+- Redis is mocked for testing
+- Cache behavior is simulated
+- No need for actual Redis instance during testing
+
+### Running Tests in Docker
 ```bash
-ab -n 1000 -c 100 http://localhost:8000/api/v1/trips/total
+# Run tests in Docker container
+docker-compose run api pytest
+
+# Run tests with coverage in Docker
+docker-compose run api pytest --cov=app tests/
+```
+
+### Test Coverage
+To generate a coverage report:
+```bash
+# Install coverage tools
+pip install pytest-cov
+
+# Run tests with coverage
+pytest --cov=app tests/ --cov-report=term-missing
+
+# Generate HTML coverage report
+pytest --cov=app tests/ --cov-report=html
 ```
 
 ## 📈 Monitoring
