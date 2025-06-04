@@ -3,7 +3,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.dependencies import get_db
 
-router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
 
 @router.get("/count")

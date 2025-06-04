@@ -5,7 +5,7 @@ from app.dependencies import get_db, get_redis_client
 import json
 import redis
 
-router = APIRouter(prefix="/finance", tags=["finance"])
+router = APIRouter(prefix="/api/v1/finance", tags=["finance"])
 
 # Constant for cache TTL
 CACHE_TTL_SECONDS = 60  # 1 minute cache

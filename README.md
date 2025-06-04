@@ -116,6 +116,11 @@ http://localhost:8000/docs
 
 ### Main Endpoints
 
+#### User Management
+- `GET /api/v1/users/count` - Get total user count
+- `GET /api/v1/users/active/count` - Get active user count (cached)
+- `GET /api/v1/users/latest` - Get latest registered user
+
 #### Card Management
 - `POST /api/v1/cards/recharge` - Recharge a travel card
 - `GET /api/v1/cards/{card_id}/balance` - Check card balance
@@ -126,18 +131,45 @@ http://localhost:8000/docs
 - `POST /api/v1/trips/end` - End a trip
 - `GET /api/v1/trips/{trip_id}` - Get trip details
 - `GET /api/v1/trips/user/{user_id}` - Get user's trip history
+- `GET /api/v1/trips/total` - Get total trips (cached)
+- `GET /api/v1/trips/total/localities` - Get trips by locality (cached)
 
 #### Station Information
 - `GET /api/v1/stations` - List all stations
 - `GET /api/v1/stations/{station_id}/arrivals` - Get real-time arrivals
 - `GET /api/v1/stations/{station_id}/alerts` - Get station alerts
 
+#### Finance
+- `GET /api/v1/finance/revenue` - Get total revenue (cached)
+- `GET /api/v1/finance/revenue/localities` - Get revenue by locality (cached)
+
 #### Analytics
 - `GET /api/v1/analytics/trips/total` - Get total trips (cached)
 - `GET /api/v1/analytics/revenue` - Get total revenue (cached)
 - `GET /api/v1/analytics/users/active` - Get active user count (cached)
 
+#### Health Checks
+- `GET /api/v1/health` - Overall system health
+- `GET /api/v1/health/db` - Database connection status
+- `GET /api/v1/health/cache` - Redis connection status
+
 ## 🧪 Testing
+
+### Unit Testing
+Run the test suite with pytest:
+```bash
+# Install test dependencies
+pip install -r requirements-test.txt
+
+# Run all tests
+pytest
+
+# Run specific test file
+pytest tests/test_users.py
+
+# Run with coverage report
+pytest --cov=app tests/
+```
 
 ### Latency Testing
 Run the included latency test scripts to measure performance:
@@ -149,7 +181,7 @@ python scripts/latency_non_cacheable.py
 ### Load Testing
 Use Apache Benchmark for load testing:
 ```bash
-ab -n 1000 -c 100 http://localhost:8000/analytics/trips/total
+ab -n 1000 -c 100 http://localhost:8000/api/v1/trips/total
 ```
 
 ## 📈 Monitoring
