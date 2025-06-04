@@ -181,9 +181,22 @@ sequenceDiagram
 ## 🚀 Getting Started & Setup
 To get this project set up and running, including all prerequisites, database setup (which is in a separate repository), Redis setup, and API configuration:
 
-### ➡️ Please refer to the detailed [DEPLOYMENT.md](deployment.md) guide.
+### Deployment Options
+This project can be deployed in two ways:
 
-A brief overview of tools you'll generally need: Python 3.8+, Git, Docker, and VirtualBox (for the original multi-VM setup).
+1. **Single Host Deployment (Docker Compose)**
+   - All services (API, PostgreSQL, Redis) run on a single machine
+   - Perfect for development and testing
+   - See [DOCKER_SETUP.md](DOCKER_SETUP.md) for instructions
+
+2. **Distributed Deployment (Multiple VMs)**
+   - Services run on separate virtual machines
+   - Simulates a real distributed environment
+   - See [DEPLOYMENT.md](deployment.md) for instructions
+
+Choose the setup that best fits your needs and follow the corresponding guide.
+
+A brief overview of tools you'll generally need: Python 3.8+, Git, Docker, and VirtualBox (for the distributed setup).
 ---
 ## 🔬 Latency Testing
 This project includes scripts to demonstrate and test the latency improvements achieved with Redis caching.

@@ -8,39 +8,51 @@ This guide provides instructions for running the entire Travel Recharge API stac
 - Docker and Docker Compose installed
 - Git
 
-### 1. Clone the Repository
+### 1. Setup Database First
 ```bash
+# Clone and setup the database repository
+git clone https://github.com/FreddyB200/travel-recharge-database.git
+cd travel-recharge-database
+
+# Configure environment variables
+cp .env.template .env
+# Edit .env with correct values
+
+# Start the database
+docker-compose up -d
+```
+
+### 2. Setup API
+```bash
+# Clone the API repository
 git clone https://github.com/FreddyB200/travel-recharge-api.git
 cd travel-recharge-api
-```
 
-### 2. Setup Database Schema
-```bash
-# Clone the database repository to get the schema and data
-git clone https://github.com/FreddyB200/travel-recharge-database.git temp-db
+# Configure environment variables
+cp docker.env.example docker.env
+# Edit docker.env with correct values:
+# - DB_HOST=postgres (from database docker-compose)
+# - DB_PORT=5432
+# - DB_NAME=travel_recharge_db
+# - DB_USER=travel_user
+# - DB_PASSWORD=travel_password
+# - REDIS_HOST=redis
+# - REDIS_PORT=6379
 
-# Copy the database files to the correct location
-# The database repository contains:
-# - Schema files in db/data/
-# - 18 data insertion files in db/data/
-# - Stored procedures in db/data/
-# - Roles and permissions
-cp -r temp-db/db/data/* database/
-
-# Clean up
-rm -rf temp-db
-```
-
-### 3. Start All Services
-```bash
-# Start all services (PostgreSQL, Redis, API)
+# Start the API and Redis
 docker-compose up -d
+```
+
+### 3. Verify Installation
+```bash
+# Check all services are running
+docker-compose ps
 
 # View logs
 docker-compose logs -f
 
-# Check service status
-docker-compose ps
+# Test the API
+curl http://localhost:8000/ping-db
 ```
 
 ### 4. Access the API
