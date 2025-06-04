@@ -8,10 +8,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1") #redis vm IP
+REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")  # redis vm IP
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6340))
 
-redis_client_instance = None # Global variable for the Redis client instance
+redis_client_instance = None  # Global variable for the Redis client instance
 
 try:
     #
@@ -19,9 +19,9 @@ try:
         host=REDIS_HOST,
         port=REDIS_PORT,
         db=0,
-        decode_responses=True # Decodes responses from bytes to strings
+        decode_responses=True  # Decodes responses from bytes to strings
     )
-    temp_redis_client.ping() # Ping to verify the connection
+    temp_redis_client.ping()  # Ping to verify the connection
     redis_client_instance = temp_redis_client
     print(f"Successfully connected to Redis at {REDIS_HOST}:{REDIS_PORT}")
 except redis.exceptions.ConnectionError as e:
@@ -31,14 +31,17 @@ except redis.exceptions.ConnectionError as e:
 except Exception as e:
     print(f"ALERT: An unexpected error occurred while configuring Redis: {e}")
 
+
 def get_redis_client():
     """FastAPI dependency to get the Redis client.
     Raises an exception if the client is not available."""
 
     if redis_client_instance is None:
-        raise HTTPException(status_code=503, detail="Cache service (Redis) not available; the connection failed during startup.")
+        raise HTTPException(
+            status_code=503, detail="Cache service (Redis) not available; the connection failed during startup.")
 
     return redis_client_instance
+
 
 def get_db():
     db = SessionLocal()

@@ -18,19 +18,19 @@ cd travel-recharge-api
 For this single-host setup, the PostgreSQL container will initialize itself using SQL scripts placed in the `./database` directory of this API repository.
 
 **Action:**
-1.  Clone the `travel-recharge-database` repository to a temporary location:
+1. Clone the `travel-recharge-database` repository to a temporary location:
     ```bash
+    cd ..  # Go up one level from travel-recharge-api
     git clone https://github.com/FreddyB200/travel-recharge-database.git temp-db-repo
     ```
-2.  Copy all `.sql` files from `temp-db-repo/db/data/` into the `./database/` directory of your `travel-recharge-api` project.
+2. Copy all `.sql` files from the database repository to the API's database directory:
     ```bash
-    # Make sure you are in the travel-recharge-api directory
-    mkdir -p database # Create the directory if it doesn't exist
-    cp temp-db-repo/db/data/*.sql database/
+    cp temp-db-repo/db/data/*.sql travel-recharge-api/database/
     ```
-3.  Clean up the temporary repository:
+3. Clean up the temporary repository:
     ```bash
     rm -rf temp-db-repo
+    cd travel-recharge-api  # Return to the API directory
     ```
 
 **Note:** The `docker-compose.yml` is configured to run any `.sql`, `.sh`, or `.sql.gz` files found in the `./database` directory when the PostgreSQL container starts.
@@ -139,6 +139,67 @@ All services include health checks. Check status with:
 ```bash
 docker-compose ps
 ```
+
+### Latency Tests
+The repository includes two scripts to test API latency. Since these scripts need to be run on the host machine (not in Docker), we'll set up a Python virtual environment:
+
+1. **Set up Python virtual environment:**
+```bash
+# Make sure you are in the travel-recharge-api directory
+python3 -m venv venv
+
+# Activate the virtual environment
+# On Linux/macOS:
+source venv/bin/activate
+# On Windows (WSL):
+source venv/bin/activate
+# On Windows (PowerShell):
+.\venv\Scripts\Activate.ps1
+
+# Install test dependencies (only what's needed for latency tests)
+pip install -r requirements-test.txt
+```
+
+2. **Run the tests:**
+   - **Cacheable Endpoints Test** (`scripts/latency_test.py`):
+     - Tests endpoints that use Redis caching
+     - Available endpoints:
+       - `/trips/total`
+       - `/trips/total/localities`
+       - `/finance/revenue`
+       - `/finance/revenue/localities`
+
+   - **Non-Cacheable Endpoints Test** (`scripts/latency_non_cacheable.py`):
+     - Tests endpoints that don't use caching
+     - Available endpoints:
+       - `/users/count`
+       - `/users/active/count`
+       - `/users/latest`
+
+```bash
+# Make sure your virtual environment is activated
+# Run cacheable endpoints test
+python3 scripts/latency_test.py
+
+# Run non-cacheable endpoints test
+python3 scripts/latency_non_cacheable.py
+```
+
+Each test will:
+1. Show available endpoints
+2. Let you choose an endpoint or test all endpoints
+3. Ask for the number of iterations
+4. Show detailed statistics for each request:
+   - Minimum, maximum, and average latency
+   - Median latency and standard deviation
+   - Success rate and HTTP status codes
+   - Any errors that occurred
+5. Option to save results to a JSON file
+
+**Note:** 
+- The first request to a cacheable endpoint will be slower as it needs to fetch from the database. Subsequent requests should be faster due to Redis caching.
+- When you're done testing, you can deactivate the virtual environment by typing `deactivate`
+- If you need to run the tests again later, just activate the virtual environment again with `source venv/bin/activate` (Linux/macOS/WSL) or `.\venv\Scripts\Activate.ps1` (Windows PowerShell)
 
 ## 🔄 Comparison with Distributed Setup
 
