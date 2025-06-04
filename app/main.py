@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.database import engine
-from app.dependencies import get_db
+from app.dependencies import get_db, get_redis_client
 from app.routers import users, trips, finance
 
 app = FastAPI(title="Travel Recharge API", version="1.0.0")
