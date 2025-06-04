@@ -60,7 +60,8 @@ def start_trip(
 
         # Check if station exists and is active
         station_query = text("""
-            SELECT status FROM stations WHERE station_id = :station_id
+            SELECT station_id, name, locality, status, capacity, current_occupancy 
+            FROM stations WHERE station_id = :station_id
         """)
         station = db.execute(
             station_query, {"station_id": trip.station_id}).first()
