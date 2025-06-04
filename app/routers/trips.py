@@ -226,9 +226,9 @@ def get_total_trips(
         query = text("""
             SELECT 
                 COUNT(*) as total_trips,
-                COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_trips,
-                COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as active_trips,
-                SUM(CASE WHEN status = 'completed' THEN fare ELSE 0 END) as total_revenue
+                COUNT(CASE WHEN end_time IS NOT NULL THEN 1 END) as completed_trips,
+                COUNT(CASE WHEN end_time IS NULL THEN 1 END) as active_trips,
+                SUM(CASE WHEN end_time IS NOT NULL THEN fare ELSE 0 END) as total_revenue
             FROM trips
         """)
         result = db.execute(query).first()
@@ -250,9 +250,9 @@ def get_total_trips(
         query = text("""
             SELECT 
                 COUNT(*) as total_trips,
-                COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_trips,
-                COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as active_trips,
-                SUM(CASE WHEN status = 'completed' THEN fare ELSE 0 END) as total_revenue
+                COUNT(CASE WHEN end_time IS NOT NULL THEN 1 END) as completed_trips,
+                COUNT(CASE WHEN end_time IS NULL THEN 1 END) as active_trips,
+                SUM(CASE WHEN end_time IS NOT NULL THEN fare ELSE 0 END) as total_revenue
             FROM trips
         """)
         result = db.execute(query).first()
@@ -284,9 +284,9 @@ def get_total_trips_by_localities(
                 SELECT 
                     s.locality,
                     COUNT(*) as total_trips,
-                    COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as completed_trips,
-                    COUNT(CASE WHEN t.status = 'in_progress' THEN 1 END) as active_trips,
-                    SUM(CASE WHEN t.status = 'completed' THEN t.fare ELSE 0 END) as total_revenue
+                    COUNT(CASE WHEN t.end_time IS NOT NULL THEN 1 END) as completed_trips,
+                    COUNT(CASE WHEN t.end_time IS NULL THEN 1 END) as active_trips,
+                    SUM(CASE WHEN t.end_time IS NOT NULL THEN t.fare ELSE 0 END) as total_revenue
                 FROM trips t
                 JOIN stations s ON t.start_station_id = s.station_id
                 GROUP BY s.locality
@@ -327,9 +327,9 @@ def get_total_trips_by_localities(
                 SELECT 
                     s.locality,
                     COUNT(*) as total_trips,
-                    COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as completed_trips,
-                    COUNT(CASE WHEN t.status = 'in_progress' THEN 1 END) as active_trips,
-                    SUM(CASE WHEN t.status = 'completed' THEN t.fare ELSE 0 END) as total_revenue
+                    COUNT(CASE WHEN t.end_time IS NOT NULL THEN 1 END) as completed_trips,
+                    COUNT(CASE WHEN t.end_time IS NULL THEN 1 END) as active_trips,
+                    SUM(CASE WHEN t.end_time IS NOT NULL THEN t.fare ELSE 0 END) as total_revenue
                 FROM trips t
                 JOIN stations s ON t.start_station_id = s.station_id
                 GROUP BY s.locality
