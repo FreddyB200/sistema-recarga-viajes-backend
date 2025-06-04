@@ -1,6 +1,28 @@
 version: '3.8'
 
 services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16 
+    container_name: travel_postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-travel_recharge_db}
+      POSTGRES_USER: ${DB_USER:-travel_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-travel_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # This expects all .sql, .sh, .sql.gz files in ./database to be run
+      - ./database:/docker-entrypoint-initdb.d 
+    ports:
+      - "${DB_PORT_HOST:-5432}:5432" # Exposes DB on host port, defaults to 5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-travel_user} -d ${DB_NAME:-travel_recharge_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - travel_network
+
   # Redis Cache
   redis:
     image: redis:7-alpine
@@ -15,29 +37,31 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - shared_db_network
+      - travel_network
 
   # FastAPI Application
   api:
     build: .
     container_name: travel_api
     ports:
-      - "8000:8000"
-    env_file: 
-      - docker.env
+      - "${API_PORT_HOST:-8000}:8000" # Exposes API on host port, defaults to 8000
+    env_file:
+      - docker.env # Loads configuration from docker.env
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
       - ./app:/app/app
     restart: unless-stopped
     networks:
-      - shared_db_network
+      - travel_network
 
 volumes:
+  postgres_data:
   redis_data:
 
 networks:
-  shared_db_network: 
-    external: true
-    name: travel-recharge-database_default
+  travel_network:
+    driver: bridge

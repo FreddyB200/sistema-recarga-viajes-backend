@@ -1,192 +1,174 @@
-# Deployment and Setup Guide for Travel Recharge API
+# Distributed Deployment Guide for Travel Recharge API
 
-This guide provides detailed instructions for deploying the Travel Recharge API in two different ways:
-
-1. **Single Host Deployment (Docker Compose)**
-   - All services run on one machine
-   - Perfect for development and testing
-   - See [DOCKER_SETUP.md](DOCKER_SETUP.md) for detailed instructions
-
-2. **Distributed Deployment (Multiple VMs)**
-   - Services run on separate virtual machines
-   - Simulates a real distributed environment
-   - Instructions below
+This guide provides detailed instructions for deploying the Travel Recharge API services (PostgreSQL, Redis, API) across multiple Virtual Machines (VMs) to simulate a distributed environment. For a simpler single-host setup using Docker Compose, please refer to [DOCKER_SETUP.md](DOCKER_SETUP.md).
 
 ## 📖 Table of Contents
 
-1. [Prerequisites](#prerequisites)
-2. [Setup Order Overview](#setup-order-overview)
-3. [Step 1: Setup the PostgreSQL Database](#step-1-setup-the-postgresql-database)
-4. [Step 2: Setup Redis](#step-2-setup-redis)
-5. [Step 3: Setup the API Application](#step-3-setup-the-api-application)
-6. [Step 4: Run the API Application](#step-4-run-the-api-application)
-7. [Troubleshooting Common Issues](#troubleshooting-common-issues)
+1.  [Prerequisites for Distributed Setup](#prerequisites-for-distributed-setup)
+2.  [Architecture Overview (Distributed)](#architecture-overview-distributed)
+3.  [Step 1: Prepare Virtual Machines](#step-1-prepare-virtual-machines)
+4.  [Step 2: Deploy PostgreSQL on its VM](#step-2-deploy-postgresql-on-its-vm)
+5.  [Step 3: Deploy Redis on its VM](#step-3-deploy-redis-on-its-vm)
+6.  [Step 4: Deploy the API Application on its VM](#step-4-deploy-the-api-application-on-its-vm)
+7.  [Step 5: Configure and Run the API](#step-5-configure-and-run-the-api)
+8.  [Troubleshooting Distributed Setup](#troubleshooting-distributed-setup)
 
 ---
 
-## 1. Prerequisites
+## 1. Prerequisites for Distributed Setup
 
-Before you begin, ensure your system meets the following requirements:
-
-* **General Development Tools:**
-    * Git & a GitHub account
-    * Python 3.8 or higher
-    * `pip` (Python package manager) and `venv` (for virtual environments)
-* **For the PostgreSQL Database:**
-    * Docker and Docker Compose
-* **For Redis:**
-    * Docker (recommended) or native installation
-* **For the distributed setup:**
-    * VirtualBox (or your preferred virtualization software)
-    * Ability to create and manage Linux VMs (Ubuntu/Alpine recommended)
-    * Docker & Docker Compose installed on each VM
-    * SSH keys configured for password-less login to VMs (recommended)
+*   **Virtualization Software:** VirtualBox, VMware, or similar.
+*   **Linux VMs:** At least three VMs (e.g., Ubuntu Server, Alpine Linux). One for each service: PostgreSQL, Redis, API.
+*   **Networking:** VMs must be able to communicate with each other over the network (e.g., using a NAT Network or Bridged Adapter in VirtualBox, properly configured).
+*   **Basic Linux & Networking Skills:** SSH, package management, IP configuration.
+*   **Docker & Docker Compose:** Required on the PostgreSQL VM (if using the DB repository's Docker setup) and optionally on the Redis VM.
+*   **Git:** For cloning repositories.
+*   **Python 3.8+ & pip:** On the API VM.
 
 ---
 
-## 2. Setup Order Overview
+## 2. Architecture Overview (Distributed)
 
-For the API to function correctly, services must be set up in the following order:
-1. **PostgreSQL Database:** This is the primary data store.
-2. **Redis:** This is used for caching.
-3. **Travel Recharge API:** This application connects to both PostgreSQL and Redis.
-
----
-
-## 3. Step 1: Setup the PostgreSQL Database
-
-The PostgreSQL database for this project is managed in a **separate repository**. It **must be set up and running before proceeding with the API setup.**
-
-```bash
-# Clone the database repository
-git clone https://github.com/FreddyB200/travel-recharge-database.git
-cd travel-recharge-database
-
-# Configure environment variables
-cp .env.template .env
-# Edit .env with correct values
-
-# Start the database
-docker-compose up -d
-```
-
-Verify the database is running:
-```bash
-docker-compose ps
-```
+*   **VM 1 (Database VM):** Runs PostgreSQL.
+*   **VM 2 (Cache VM):** Runs Redis.
+*   **VM 3 (API VM):** Runs the FastAPI application.
+*   Each VM will have its own IP address. The API VM will be configured to connect to the Database VM and Cache VM using their respective IP addresses and ports.
 
 ---
 
-## 4. Step 2: Setup Redis
+## 3. Step 1: Prepare Virtual Machines
 
-You need a Redis instance running and accessible to the API. Choose one of the following options:
+1.  Create and configure three Linux VMs.
+2.  Install necessary base packages (e.g., `git`, `curl`, `build-essential` for Python if needed).
+3.  Ensure network connectivity between all VMs. Note down the IP address of each VM.
+4.  Install Docker and Docker Compose on the VM designated for PostgreSQL, and optionally on the VM for Redis if you plan to run Redis in Docker.
 
-### Option A: Install Redis Natively
+---
 
-* **Debian/Ubuntu:**
+## 4. Step 2: Deploy PostgreSQL on its VM
+
+This assumes you are using the `travel-recharge-database` repository to run PostgreSQL in Docker on its dedicated VM.
+
+1.  **On the Database VM:**
     ```bash
-    sudo apt update
-    sudo apt install redis-server -y
-    sudo systemctl enable redis-server --now
+    # Clone the database repository
+    git clone https://github.com/FreddyB200/travel-recharge-database.git
+    cd travel-recharge-database
+
+    # Configure environment variables (e.g., in .env)
+    cp .env.template .env
+    # Edit .env with your desired database name (POSTGRES_DB),
+    # user (POSTGRES_USER), password (POSTGRES_PASSWORD),
+    # and the host port you want PostgreSQL to listen on (POSTGRES_LISTEN_PORT, e.g., 5432).
+    # The PostgreSQL container will be accessible on this port on the Database VM's IP.
+
+    # Start the database
+    docker-compose up -d
     ```
-* **Alpine Linux:**
+2.  **Verify PostgreSQL Accessibility:**
+    *   Ensure the PostgreSQL container is running on the Database VM: `docker-compose ps`
+    *   **Crucially, ensure the Database VM's firewall allows incoming connections on the `POSTGRES_LISTEN_PORT` (e.g., 5432) from the API VM's IP address.**
+    *   From the API VM, test connectivity to the PostgreSQL port on the Database VM:
+        ```bash
+        # Replace DB_VM_IP with the Database VM's IP and DB_PORT with the POSTGRES_LISTEN_PORT
+        nc -zv DB_VM_IP DB_PORT
+        ```
+        A successful connection will indicate that the network path is open. The official PostgreSQL Docker image, when configured with `POSTGRES_USER` and `POSTGRES_PASSWORD`, is generally set up to allow connections from other hosts using these credentials without needing to modify internal PostgreSQL configuration files like `pg_hba.conf` for typical use cases.
+
+---
+
+## 5. Step 3: Deploy Redis on its VM
+
+1.  **On the Cache VM:**
+    *   **Option A: Install Redis Natively**
+        ```bash
+        # Debian/Ubuntu
+        sudo apt update && sudo apt install redis-server -y
+        sudo systemctl enable redis-server --now
+        # Edit /etc/redis/redis.conf, change 'bind 127.0.0.1' to 'bind 0.0.0.0' or the Cache VM's IP
+        sudo systemctl restart redis-server
+        ```
+        ```bash
+        # Alpine Linux
+        apk update && apk add redis
+        # Edit /etc/redis.conf, change 'bind 127.0.0.1' to 'bind 0.0.0.0' or the Cache VM's IP
+        rc-update add redis && rc-service redis start
+        ```
+    *   **Option B: Run Redis with Docker**
+        ```bash
+        docker run -d --name redis-cache -p 6379:6379 redis:latest redis-server --bind 0.0.0.0
+        ```
+2.  **Verify:** Ensure Redis is running and accessible on its port (6379) from the API VM.
     ```bash
-    apk update
-    apk add redis
-    rc-update add redis
-    rc-service redis start
+    # From API VM (replace CACHE_VM_IP and REDIS_PORT)
+    # nc -zv CACHE_VM_IP REDIS_PORT
+    # Or try redis-cli
+    # redis-cli -h CACHE_VM_IP -p REDIS_PORT ping 
     ```
-* **Verify Installation:**
+
+---
+
+## 6. Step 4: Deploy the API Application on its VM
+
+1.  **On the API VM:**
     ```bash
-    redis-cli ping
+    # Clone the API repository
+    git clone https://github.com/FreddyB200/travel-recharge-api.git
+    cd travel-recharge-api
+
+    # Create a Python virtual environment and install dependencies
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install -r requirements.txt
     ```
-    This command should respond with `PONG`.
 
-### Option B: Run Redis with Docker
+---
 
-```bash
-docker run -d --name redis-cache -p 6379:6379 redis:latest
-```
-* **Verify Installation:**
-```bash
-docker exec redis-cache redis-cli ping
-```
-This command should respond with PONG.
+## 7. Step 5: Configure and Run the API
 
-## 5. Step 3: Setup the API Application
+1.  **On the API VM (in `travel-recharge-api` directory):**
+    1.  Create an environment file for the API. You can copy `docker.env.example` to a new file, e.g., `.env.distributed` (to avoid confusion with `docker.env` used by Docker Compose setup).
+        ```bash
+        cp docker.env.example .env.distributed 
+        ```
+    2.  Edit `.env.distributed` (or your chosen env file name):
+        *   `DB_HOST`: Set to the **IP address of your Database VM**.
+        *   `DB_PORT`: Set to the port PostgreSQL is listening on in the Database VM (e.g., `5432`).
+        *   `DB_NAME`, `DB_USER`, `DB_PASSWORD`: Match the credentials for your PostgreSQL database.
+        *   `REDIS_HOST`: Set to the **IP address of your Cache VM**.
+        *   `REDIS_PORT`: Set to the port Redis is listening on in the Cache VM (e.g., `6379`).
+        *   `API_HOST=0.0.0.0` (to make the API accessible externally on the API VM).
+        *   `API_PORT=8000`.
 
-### Clone the API Repository
-```bash
-git clone https://github.com/FreddyB200/travel-recharge-api.git
-cd travel-recharge-api
-```
+2.  **Load Environment Variables and Run the API:**
+    The `app.main` likely uses a library like `python-dotenv` to load a `.env` file by default, or you might need to source it or use a tool like `honcho` or `uvicorn --env-file`.
 
-### Configure Environment Variables
-1. **Copy the example environment file:**
+    If `python-dotenv` is used and loads `.env` by default, you can rename your `.env.distributed` to `.env` before running:
     ```bash
-    cp docker.env.example docker.env
+    mv .env.distributed .env 
+    ```
+    Then run Uvicorn:
+    ```bash
+    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload 
+    ```
+    Alternatively, if your Uvicorn version supports `--env-file`:
+    ```bash
+    uvicorn app.main:app --env-file .env.distributed --host 0.0.0.0 --port 8000 --reload
     ```
 
-2. **Edit `docker.env` with your settings:**
-    * **`DB_HOST`**: IP address or hostname of your PostgreSQL server
-    * **`DB_PORT`**: Port for PostgreSQL (default `5432`)
-    * **`DB_NAME`**: Database name
-    * **`DB_USER`**: Username for PostgreSQL
-    * **`DB_PASSWORD`**: Password for PostgreSQL
-    * **`REDIS_HOST`**: IP address or hostname of your Redis server
-    * **`REDIS_PORT`**: Port for Redis (default `6379`)
+3.  **Access the API:** From your host machine or another machine that can reach the API VM, use `http://API_VM_IP:8000`.
 
-### Install Python Dependencies
-```bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
+---
 
-## 6. Step 4: Run the API Application
+## 8. Troubleshooting Distributed Setup
 
-### Development Mode (with auto-reload)
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+*   **Connection Refused/Timeout:**
+    *   Verify VM network connectivity (ping between VMs).
+    *   Check firewalls on each VM (e.g., `ufw` on Ubuntu). Ensure ports 5432 (PostgreSQL), 6379 (Redis), and 8000 (API) are open for connections from the respective source IPs.
+    *   Ensure PostgreSQL and Redis services are configured to `bind` to `0.0.0.0` or their specific VM IP, not just `127.0.0.1`.
+    *   Double-check IP addresses and ports in the API's environment file.
+*   **Authentication Failed (PostgreSQL):**
+    *   Ensure `pg_hba.conf` on the Database VM allows connections from the API VM's IP for the specified user and database.
+    *   Verify credentials.
 
-### Production Mode
-```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-The application should now be available at `http://127.0.0.1:8000`. You can access the interactive API documentation at:
-- Swagger UI: `http://127.0.0.1:8000/docs`
-- ReDoc: `http://127.0.0.1:8000/redoc`
-
-## 7. Troubleshooting Common Issues
-
-### Connection Issues
-- **PostgreSQL Connection Refused:**
-  - Verify PostgreSQL is running
-  - Check host and port in `docker.env`
-  - Ensure network connectivity between services
-
-- **Redis Connection Refused:**
-  - Verify Redis is running
-  - Check host and port in `docker.env`
-  - Test connection with `redis-cli ping`
-
-### Authentication Issues
-- **PostgreSQL Authentication Failed:**
-  - Double-check credentials in `docker.env`
-  - Verify database name and user permissions
-
-### API Startup Issues
-- **ModuleNotFoundError:**
-  - Ensure virtual environment is activated
-  - Verify all dependencies are installed
-  - Check Python version compatibility
-
-### Docker-specific Issues
-- **Container Networking:**
-  - Ensure containers are on the same network
-  - Check port mappings
-  - Verify service names in environment variables
-
-For more detailed troubleshooting, refer to the [DOCKER_SETUP.md](DOCKER_SETUP.md) guide.
+This guide focuses on the distributed setup. For single-host Docker Compose, see [DOCKER_SETUP.md](DOCKER_SETUP.md).
