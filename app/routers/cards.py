@@ -2,27 +2,24 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_redis_client
-from pydantic import BaseModel
-from typing import List, Optional
-from datetime import datetime
-import json
 import redis
+import json
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
 
 router = APIRouter(prefix="/api/v1/cards", tags=["cards"])
-
-# Pydantic models for request/response
 
 
 class CardRecharge(BaseModel):
     card_id: int
     amount: float
-    payment_method: str
 
 
 class CardBalance(BaseModel):
     card_id: int
     balance: float
-    last_recharge: Optional[datetime]
+    last_used_date: Optional[datetime]
     status: str
 
 
@@ -30,8 +27,7 @@ class RechargeHistory(BaseModel):
     recharge_id: int
     card_id: int
     amount: float
-    payment_method: str
-    timestamp: datetime
+    recharge_timestamp: datetime
 
 
 # Cache TTL
@@ -56,26 +52,26 @@ def recharge_card(
         if card.status != "active":
             raise HTTPException(status_code=400, detail="Card is not active")
 
-        # Insert recharge record
+        # Insert recharge record (matching schema: no payment_method, use recharge_timestamp)
         recharge_query = text("""
-            INSERT INTO recharges (card_id, amount, payment_method, timestamp)
-            VALUES (:card_id, :amount, :payment_method, CURRENT_TIMESTAMP)
-            RETURNING recharge_id, timestamp
+            INSERT INTO recharges (card_id, amount, recharge_timestamp)
+            VALUES (:card_id, :amount, CURRENT_TIMESTAMP)
+            RETURNING recharge_id, recharge_timestamp
         """)
         result = db.execute(
             recharge_query,
             {
                 "card_id": recharge.card_id,
-                "amount": recharge.amount,
-                "payment_method": recharge.payment_method
+                "amount": recharge.amount
             }
         ).first()
 
-        # Update card balance
+        # Update card balance and last_used_date
         update_query = text("""
             UPDATE cards 
             SET balance = balance + :amount,
-                last_recharge = CURRENT_TIMESTAMP
+                last_used_date = CURRENT_TIMESTAMP,
+                update_date = CURRENT_DATE
             WHERE card_id = :card_id
             RETURNING balance
         """)
@@ -98,7 +94,7 @@ def recharge_card(
             "card_id": recharge.card_id,
             "amount": recharge.amount,
             "new_balance": new_balance,
-            "timestamp": result.timestamp
+            "recharge_timestamp": result.recharge_timestamp.isoformat()
         }
 
     except Exception as e:
@@ -120,9 +116,9 @@ def get_card_balance(
         if cached_data:
             return json.loads(cached_data)
 
-        # Query database
+        # Query database (matching schema fields)
         query = text("""
-            SELECT card_id, balance, last_recharge, status
+            SELECT card_id, balance, last_used_date, status
             FROM cards
             WHERE card_id = :card_id
         """)
@@ -134,7 +130,7 @@ def get_card_balance(
         response = {
             "card_id": result.card_id,
             "balance": float(result.balance),
-            "last_recharge": result.last_recharge.isoformat() if result.last_recharge else None,
+            "last_used_date": result.last_used_date.isoformat() if result.last_used_date else None,
             "status": result.status
         }
 
@@ -146,7 +142,7 @@ def get_card_balance(
     except redis.exceptions.RedisError as e:
         # If Redis fails, just serve from database
         query = text("""
-            SELECT card_id, balance, last_recharge, status
+            SELECT card_id, balance, last_used_date, status
             FROM cards
             WHERE card_id = :card_id
         """)
@@ -158,7 +154,7 @@ def get_card_balance(
         return {
             "card_id": result.card_id,
             "balance": float(result.balance),
-            "last_recharge": result.last_recharge.isoformat() if result.last_recharge else None,
+            "last_used_date": result.last_used_date.isoformat() if result.last_used_date else None,
             "status": result.status
         }
 
@@ -177,12 +173,12 @@ def get_card_history(
         if cached_data:
             return json.loads(cached_data)
 
-        # Query database
+        # Query database (matching schema: use recharge_timestamp, no payment_method)
         query = text("""
-            SELECT recharge_id, card_id, amount, payment_method, timestamp
+            SELECT recharge_id, card_id, amount, recharge_timestamp
             FROM recharges
             WHERE card_id = :card_id
-            ORDER BY timestamp DESC
+            ORDER BY recharge_timestamp DESC
             LIMIT 10
         """)
         results = db.execute(query, {"card_id": card_id}).fetchall()
@@ -195,8 +191,7 @@ def get_card_history(
                 "recharge_id": r.recharge_id,
                 "card_id": r.card_id,
                 "amount": float(r.amount),
-                "payment_method": r.payment_method,
-                "timestamp": r.timestamp.isoformat()
+                "recharge_timestamp": r.recharge_timestamp.isoformat()
             }
             for r in results
         ]
@@ -211,10 +206,10 @@ def get_card_history(
     except redis.exceptions.RedisError as e:
         # If Redis fails, just serve from database
         query = text("""
-            SELECT recharge_id, card_id, amount, payment_method, timestamp
+            SELECT recharge_id, card_id, amount, recharge_timestamp
             FROM recharges
             WHERE card_id = :card_id
-            ORDER BY timestamp DESC
+            ORDER BY recharge_timestamp DESC
             LIMIT 10
         """)
         results = db.execute(query, {"card_id": card_id}).fetchall()
@@ -227,8 +222,7 @@ def get_card_history(
                 "recharge_id": r.recharge_id,
                 "card_id": r.card_id,
                 "amount": float(r.amount),
-                "payment_method": r.payment_method,
-                "timestamp": r.timestamp.isoformat()
+                "recharge_timestamp": r.recharge_timestamp.isoformat()
             }
             for r in results
         ]

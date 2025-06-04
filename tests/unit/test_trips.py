@@ -76,7 +76,7 @@ def test_get_total_trips_empty(client, db_session):
 def test_get_total_trips_with_data(client, db_session):
     # Insert test data
     db_session.execute("""
-        INSERT INTO trips (trip_id, user_id, boarding_station_id, fare_id)
+        INSERT INTO trips (trip_id, card_id, boarding_station_id, fare_id)
         VALUES (1, 1, 1, 1)
     """)
     db_session.commit()
@@ -103,7 +103,7 @@ def test_get_total_trips_by_localities_with_data(client, db_session):
         VALUES (1, 1)
     """)
     db_session.execute("""
-        INSERT INTO trips (trip_id, user_id, boarding_station_id, fare_id)
+        INSERT INTO trips (trip_id, card_id, boarding_station_id, fare_id)
         VALUES (1, 1, 1, 1)
     """)
     db_session.commit()
@@ -123,7 +123,7 @@ def test_redis_cache_trips_total(client, db_session):
 
     # Insert new data
     db_session.execute("""
-        INSERT INTO trips (trip_id, user_id, boarding_station_id, fare_id)
+        INSERT INTO trips (trip_id, card_id, boarding_station_id, fare_id)
         VALUES (1, 1, 1, 1)
     """)
     db_session.commit()
@@ -149,7 +149,7 @@ def test_redis_cache_trips_localities(client, db_session):
         VALUES (1, 1)
     """)
     db_session.execute("""
-        INSERT INTO trips (trip_id, user_id, boarding_station_id, fare_id)
+        INSERT INTO trips (trip_id, card_id, boarding_station_id, fare_id)
         VALUES (1, 1, 1, 1)
     """)
     db_session.commit()

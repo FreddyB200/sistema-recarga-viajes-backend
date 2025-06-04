@@ -638,8 +638,7 @@
                     },
                     body: JSON.stringify({
                         card_id: parseInt(cardId),
-                        amount: parseFloat(amount),
-                        payment_method: "dashboard_simulation"
+                        amount: parseFloat(amount)
                     })
                 });
                 
@@ -736,8 +735,7 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 card_id: i,
-                                amount: amount,
-                                payment_method: "mass_simulation"
+                                amount: amount
                             })
                         });
                         
