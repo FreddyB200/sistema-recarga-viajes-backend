@@ -2,13 +2,210 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_redis_client
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import datetime
 import json
 import redis
 
 router = APIRouter(prefix="/api/v1/trips", tags=["trips"])
 
-# Constant for cache TTL
-CACHE_TTL_SECONDS = 60  # 1 minute cache
+# Pydantic models for request/response
+
+
+class TripStart(BaseModel):
+    card_id: int
+    station_id: int
+
+
+class TripEnd(BaseModel):
+    trip_id: int
+    station_id: int
+
+
+class Trip(BaseModel):
+    trip_id: int
+    card_id: int
+    start_station_id: int
+    end_station_id: Optional[int]
+    start_time: datetime
+    end_time: Optional[datetime]
+    status: str
+    fare: Optional[float]
+
+
+# Cache TTL
+CACHE_TTL_SECONDS = 300  # 5 minutes for trip data
+
+
+@router.post("/start")
+def start_trip(
+    trip: TripStart,
+    db: Session = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis_client)
+):
+    try:
+        # Check if card exists and has sufficient balance
+        card_query = text("""
+            SELECT status, balance FROM cards WHERE card_id = :card_id
+        """)
+        card = db.execute(card_query, {"card_id": trip.card_id}).first()
+
+        if not card:
+            raise HTTPException(status_code=404, detail="Card not found")
+        if card.status != "active":
+            raise HTTPException(status_code=400, detail="Card is not active")
+        if card.balance < 1.0:  # Minimum balance required
+            raise HTTPException(status_code=400, detail="Insufficient balance")
+
+        # Check if station exists and is active
+        station_query = text("""
+            SELECT status FROM stations WHERE station_id = :station_id
+        """)
+        station = db.execute(
+            station_query, {"station_id": trip.station_id}).first()
+
+        if not station:
+            raise HTTPException(status_code=404, detail="Station not found")
+        if station.status != "active":
+            raise HTTPException(
+                status_code=400, detail="Station is not active")
+
+        # Check if card has an active trip
+        active_trip_query = text("""
+            SELECT trip_id FROM trips 
+            WHERE card_id = :card_id AND status = 'in_progress'
+        """)
+        active_trip = db.execute(
+            active_trip_query, {"card_id": trip.card_id}).first()
+
+        if active_trip:
+            raise HTTPException(
+                status_code=400, detail="Card has an active trip")
+
+        # Create new trip
+        trip_query = text("""
+            INSERT INTO trips (card_id, start_station_id, start_time, status)
+            VALUES (:card_id, :station_id, CURRENT_TIMESTAMP, 'in_progress')
+            RETURNING trip_id, start_time
+        """)
+        result = db.execute(
+            trip_query,
+            {
+                "card_id": trip.card_id,
+                "station_id": trip.station_id
+            }
+        ).first()
+
+        db.commit()
+
+        # Invalidate cache
+        redis_client.delete("trips:total")
+        redis_client.delete(f"trips:card:{trip.card_id}")
+
+        return {
+            "trip_id": result.trip_id,
+            "card_id": trip.card_id,
+            "start_station_id": trip.station_id,
+            "start_time": result.start_time.isoformat(),
+            "status": "in_progress"
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/end")
+def end_trip(
+    trip: TripEnd,
+    db: Session = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis_client)
+):
+    try:
+        # Check if trip exists and is in progress
+        trip_query = text("""
+            SELECT t.trip_id, t.card_id, t.start_station_id, t.start_time, c.balance
+            FROM trips t
+            JOIN cards c ON t.card_id = c.card_id
+            WHERE t.trip_id = :trip_id AND t.status = 'in_progress'
+        """)
+        trip_data = db.execute(trip_query, {"trip_id": trip.trip_id}).first()
+
+        if not trip_data:
+            raise HTTPException(
+                status_code=404, detail="Active trip not found")
+
+        # Check if end station exists and is active
+        station_query = text("""
+            SELECT status FROM stations WHERE station_id = :station_id
+        """)
+        station = db.execute(
+            station_query, {"station_id": trip.station_id}).first()
+
+        if not station:
+            raise HTTPException(status_code=404, detail="Station not found")
+        if station.status != "active":
+            raise HTTPException(
+                status_code=400, detail="Station is not active")
+
+        # Calculate fare based on distance/time
+        # This is a simplified calculation - in reality, it would be more complex
+        fare = 2.50  # Base fare
+
+        # Check if card has sufficient balance
+        if trip_data.balance < fare:
+            raise HTTPException(
+                status_code=400, detail="Insufficient balance for fare")
+
+        # Update trip and card balance
+        update_query = text("""
+            WITH trip_update AS (
+                UPDATE trips 
+                SET end_station_id = :station_id,
+                    end_time = CURRENT_TIMESTAMP,
+                    status = 'completed',
+                    fare = :fare
+                WHERE trip_id = :trip_id
+                RETURNING trip_id, end_time
+            )
+            UPDATE cards
+            SET balance = balance - :fare
+            WHERE card_id = :card_id
+            RETURNING balance
+        """)
+        result = db.execute(
+            update_query,
+            {
+                "trip_id": trip.trip_id,
+                "station_id": trip.station_id,
+                "fare": fare,
+                "card_id": trip_data.card_id
+            }
+        ).first()
+
+        db.commit()
+
+        # Invalidate cache
+        redis_client.delete("trips:total")
+        redis_client.delete(f"trips:card:{trip_data.card_id}")
+        redis_client.delete(f"card:{trip_data.card_id}:balance")
+
+        return {
+            "trip_id": trip.trip_id,
+            "card_id": trip_data.card_id,
+            "start_station_id": trip_data.start_station_id,
+            "end_station_id": trip.station_id,
+            "start_time": trip_data.start_time.isoformat(),
+            "end_time": result.end_time.isoformat(),
+            "status": "completed",
+            "fare": fare,
+            "new_balance": result.balance
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/total")
@@ -19,32 +216,52 @@ def get_total_trips(
     cache_key = "trips:total"
 
     try:
-        cached_data_str = redis_client.get(cache_key)
-        if cached_data_str:
-            print(f"Cache HIT for '{cache_key}'")
-            total_trips = json.loads(cached_data_str)
-            return {"total_trips": total_trips}
+        # Try to get from cache
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return json.loads(cached_data)
 
-        print(f"Cache MISS for '{cache_key}'. Querying database...")
-        result = db.execute(
-            text("SELECT COUNT(*) AS total_trips FROM trips;")).scalar_one_or_none()
-        total_trips = result if result is not None else 0
+        # Query database
+        query = text("""
+            SELECT 
+                COUNT(*) as total_trips,
+                COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_trips,
+                COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as active_trips,
+                SUM(CASE WHEN status = 'completed' THEN fare ELSE 0 END) as total_revenue
+            FROM trips
+        """)
+        result = db.execute(query).first()
 
-        redis_client.setex(cache_key, CACHE_TTL_SECONDS,
-                           json.dumps(total_trips))
-        print(f"'{cache_key}' saved to Redis with TTL of {CACHE_TTL_SECONDS}s.")
+        response = {
+            "total_trips": result.total_trips,
+            "completed_trips": result.completed_trips,
+            "active_trips": result.active_trips,
+            "total_revenue": float(result.total_revenue) if result.total_revenue else 0.0
+        }
 
-        return {"total_trips": total_trips}
+        # Cache the result
+        redis_client.setex(cache_key, CACHE_TTL_SECONDS, json.dumps(response))
+
+        return response
 
     except redis.exceptions.RedisError as e:
-        print(f"ALERT: Redis error during operation: {e}. Serving from DB.")
-        result = db.execute(
-            text("SELECT COUNT(*) AS total_trips FROM trips;")).scalar_one_or_none()
-        total_trips = result if result is not None else 0
-        return {"total_trips": total_trips}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail={"error": {
-                            "code": "DATABASE_ERROR", "message": f"Error querying the database: {str(e)}"}})
+        # If Redis fails, just serve from database
+        query = text("""
+            SELECT 
+                COUNT(*) as total_trips,
+                COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_trips,
+                COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as active_trips,
+                SUM(CASE WHEN status = 'completed' THEN fare ELSE 0 END) as total_revenue
+            FROM trips
+        """)
+        result = db.execute(query).first()
+
+        return {
+            "total_trips": result.total_trips,
+            "completed_trips": result.completed_trips,
+            "active_trips": result.active_trips,
+            "total_revenue": float(result.total_revenue) if result.total_revenue else 0.0
+        }
 
 
 @router.get("/total/localities")
@@ -52,57 +269,210 @@ def get_total_trips_by_localities(
     db: Session = Depends(get_db),
     redis_client: redis.Redis = Depends(get_redis_client)
 ):
-    cache_key = "trips:total:by_localities"
+    cache_key = "trips:total:localities"
 
     try:
-        cached_data_str = redis_client.get(cache_key)
-        if cached_data_str:
-            print(f"Cache HIT for '{cache_key}'")
-            response_data_list = json.loads(cached_data_str)
-            return {"data": response_data_list}
+        # Try to get from cache
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return json.loads(cached_data)
 
-        print(f"Cache MISS for '{cache_key}'. Querying database...")
+        # Query database
         query = text("""
-            SELECT loc.name AS locality, COUNT(t.trip_id) AS total_trips
-            FROM trips t
-            JOIN stations s ON t.boarding_station_id = s.station_id
-            JOIN locations loc ON s.location_id = loc.location_id
-            GROUP BY loc.name
-            ORDER BY total_trips DESC;
+            WITH trip_stats AS (
+                SELECT 
+                    s.locality,
+                    COUNT(*) as total_trips,
+                    COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as completed_trips,
+                    COUNT(CASE WHEN t.status = 'in_progress' THEN 1 END) as active_trips,
+                    SUM(CASE WHEN t.status = 'completed' THEN t.fare ELSE 0 END) as total_revenue
+                FROM trips t
+                JOIN stations s ON t.start_station_id = s.station_id
+                GROUP BY s.locality
+            )
+            SELECT 
+                locality,
+                total_trips,
+                completed_trips,
+                active_trips,
+                total_revenue
+            FROM trip_stats
+            ORDER BY total_trips DESC
         """)
-        result_proxy = db.execute(query)
-        rows = result_proxy.mappings().all()
+        results = db.execute(query).fetchall()
 
-        response_data_list = [
-            {"locality": row["locality"], "total_trips": int(
-                row["total_trips"]) if row["total_trips"] is not None else 0}
-            for row in rows
+        localities = [
+            {
+                "locality": r.locality,
+                "total_trips": r.total_trips,
+                "completed_trips": r.completed_trips,
+                "active_trips": r.active_trips,
+                "total_revenue": float(r.total_revenue) if r.total_revenue else 0.0
+            }
+            for r in results
         ]
 
-        redis_client.setex(cache_key, CACHE_TTL_SECONDS,
-                           json.dumps(response_data_list))
-        print(f"'{cache_key}' saved to Redis with TTL of {CACHE_TTL_SECONDS}s.")
+        response = {"localities": localities}
 
-        return {"data": response_data_list}
+        # Cache the result
+        redis_client.setex(cache_key, CACHE_TTL_SECONDS, json.dumps(response))
+
+        return response
 
     except redis.exceptions.RedisError as e:
-        print(f"ALERT: Redis error during operation: {e}. Serving from DB.")
+        # If Redis fails, just serve from database
         query = text("""
-            SELECT loc.name AS locality, COUNT(t.trip_id) AS total_trips
-            FROM trips t
-            JOIN stations s ON t.boarding_station_id = s.station_id
-            JOIN locations loc ON s.location_id = loc.location_id
-            GROUP BY loc.name
-            ORDER BY total_trips DESC;
+            WITH trip_stats AS (
+                SELECT 
+                    s.locality,
+                    COUNT(*) as total_trips,
+                    COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as completed_trips,
+                    COUNT(CASE WHEN t.status = 'in_progress' THEN 1 END) as active_trips,
+                    SUM(CASE WHEN t.status = 'completed' THEN t.fare ELSE 0 END) as total_revenue
+                FROM trips t
+                JOIN stations s ON t.start_station_id = s.station_id
+                GROUP BY s.locality
+            )
+            SELECT 
+                locality,
+                total_trips,
+                completed_trips,
+                active_trips,
+                total_revenue
+            FROM trip_stats
+            ORDER BY total_trips DESC
         """)
-        result_proxy = db.execute(query)
-        rows = result_proxy.mappings().all()
-        response_data_list = [
-            {"locality": row["locality"], "total_trips": int(
-                row["total_trips"]) if row["total_trips"] is not None else 0}
-            for row in rows
+        results = db.execute(query).fetchall()
+
+        localities = [
+            {
+                "locality": r.locality,
+                "total_trips": r.total_trips,
+                "completed_trips": r.completed_trips,
+                "active_trips": r.active_trips,
+                "total_revenue": float(r.total_revenue) if r.total_revenue else 0.0
+            }
+            for r in results
         ]
-        return {"data": response_data_list}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail={"error": {
-                            "code": "DATABASE_ERROR", "message": f"Error querying the database: {str(e)}"}})
+
+        return {"localities": localities}
+
+
+@router.get("/card/{card_id}")
+def get_card_trips(
+    card_id: int,
+    db: Session = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis_client)
+):
+    cache_key = f"trips:card:{card_id}"
+
+    try:
+        # Try to get from cache
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return json.loads(cached_data)
+
+        # Check if card exists
+        card_query = text("""
+            SELECT card_id FROM cards WHERE card_id = :card_id
+        """)
+        card = db.execute(card_query, {"card_id": card_id}).first()
+
+        if not card:
+            raise HTTPException(status_code=404, detail="Card not found")
+
+        # Get trips
+        query = text("""
+            SELECT 
+                t.trip_id,
+                t.card_id,
+                t.start_station_id,
+                t.end_station_id,
+                t.start_time,
+                t.end_time,
+                t.status,
+                t.fare,
+                s1.name as start_station_name,
+                s2.name as end_station_name
+            FROM trips t
+            LEFT JOIN stations s1 ON t.start_station_id = s1.station_id
+            LEFT JOIN stations s2 ON t.end_station_id = s2.station_id
+            WHERE t.card_id = :card_id
+            ORDER BY t.start_time DESC
+            LIMIT 10
+        """)
+        results = db.execute(query, {"card_id": card_id}).fetchall()
+
+        trips = [
+            {
+                "trip_id": r.trip_id,
+                "card_id": r.card_id,
+                "start_station_id": r.start_station_id,
+                "end_station_id": r.end_station_id,
+                "start_station_name": r.start_station_name,
+                "end_station_name": r.end_station_name,
+                "start_time": r.start_time.isoformat(),
+                "end_time": r.end_time.isoformat() if r.end_time else None,
+                "status": r.status,
+                "fare": float(r.fare) if r.fare else None
+            }
+            for r in results
+        ]
+
+        response = {"trips": trips}
+
+        # Cache the result
+        redis_client.setex(cache_key, CACHE_TTL_SECONDS, json.dumps(response))
+
+        return response
+
+    except redis.exceptions.RedisError as e:
+        # If Redis fails, just serve from database
+        # Check if card exists
+        card_query = text("""
+            SELECT card_id FROM cards WHERE card_id = :card_id
+        """)
+        card = db.execute(card_query, {"card_id": card_id}).first()
+
+        if not card:
+            raise HTTPException(status_code=404, detail="Card not found")
+
+        # Get trips
+        query = text("""
+            SELECT 
+                t.trip_id,
+                t.card_id,
+                t.start_station_id,
+                t.end_station_id,
+                t.start_time,
+                t.end_time,
+                t.status,
+                t.fare,
+                s1.name as start_station_name,
+                s2.name as end_station_name
+            FROM trips t
+            LEFT JOIN stations s1 ON t.start_station_id = s1.station_id
+            LEFT JOIN stations s2 ON t.end_station_id = s2.station_id
+            WHERE t.card_id = :card_id
+            ORDER BY t.start_time DESC
+            LIMIT 10
+        """)
+        results = db.execute(query, {"card_id": card_id}).fetchall()
+
+        trips = [
+            {
+                "trip_id": r.trip_id,
+                "card_id": r.card_id,
+                "start_station_id": r.start_station_id,
+                "end_station_id": r.end_station_id,
+                "start_station_name": r.start_station_name,
+                "end_station_name": r.end_station_name,
+                "start_time": r.start_time.isoformat(),
+                "end_time": r.end_time.isoformat() if r.end_time else None,
+                "status": r.status,
+                "fare": float(r.fare) if r.fare else None
+            }
+            for r in results
+        ]
+
+        return {"trips": trips}
