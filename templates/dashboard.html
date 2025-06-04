@@ -227,15 +227,26 @@
             padding: 10px;
             margin-bottom: 10px;
             border-radius: 5px;
-            color: white;
+            color: #333;
+            background: rgba(255,255,255,0.9);
         }
         
         .alert.success {
             border-left-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+            color: #2e7d32;
         }
         
         .alert.error {
             border-left-color: #f44336;
+            background: rgba(244, 67, 54, 0.1);
+            color: #c62828;
+        }
+        
+        .alert.info {
+            border-left-color: #2196F3;
+            background: rgba(33, 150, 243, 0.1);
+            color: #1565c0;
         }
         
         .simulation-controls {
@@ -440,7 +451,7 @@
                 
                 <h4>🔔 Live Alerts</h4>
                 <div class="alerts-panel" id="alertsPanel">
-                    <div class="loading">Loading alerts...</div>
+                    <!-- Alerts will appear here -->
                 </div>
             </div>
         </div>
@@ -591,7 +602,7 @@
                     },
                     body: JSON.stringify({
                         card_id: parseInt(cardId),
-                        boarding_station_id: parseInt(stationId)
+                        station_id: parseInt(stationId)
                     })
                 });
                 
@@ -604,8 +615,9 @@
                     setTimeout(refreshData, 1000);
                 } else {
                     const error = await response.json();
-                    messagesDiv.innerHTML = `<div class="error-message">❌ Error: ${error.detail || 'Failed to create trip'}</div>`;
-                    addAlert(`Failed to create trip: ${error.detail}`, 'error');
+                    const errorMsg = typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail);
+                    messagesDiv.innerHTML = `<div class="error-message">❌ Error: ${errorMsg}</div>`;
+                    addAlert(`Failed to create trip: ${errorMsg}`, 'error');
                 }
             } catch (error) {
                 messagesDiv.innerHTML = `<div class="error-message">❌ Network Error: ${error.message}</div>`;
@@ -626,7 +638,8 @@
                     },
                     body: JSON.stringify({
                         card_id: parseInt(cardId),
-                        amount: parseInt(amount)
+                        amount: parseFloat(amount),
+                        payment_method: "dashboard_simulation"
                     })
                 });
                 
@@ -639,8 +652,9 @@
                     setTimeout(refreshData, 1000);
                 } else {
                     const error = await response.json();
-                    messagesDiv.innerHTML = `<div class="error-message">❌ Error: ${error.detail || 'Failed to recharge card'}</div>`;
-                    addAlert(`Failed to recharge card: ${error.detail}`, 'error');
+                    const errorMsg = typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail);
+                    messagesDiv.innerHTML = `<div class="error-message">❌ Error: ${errorMsg}</div>`;
+                    addAlert(`Failed to recharge card: ${errorMsg}`, 'error');
                 }
             } catch (error) {
                 messagesDiv.innerHTML = `<div class="error-message">❌ Network Error: ${error.message}</div>`;
@@ -658,15 +672,22 @@
                     const stationId = Math.floor(Math.random() * 50) + 101;
                     
                     try {
-                        await fetch('/api/v1/trips/start', {
+                        const response = await fetch('/api/v1/trips/start', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 card_id: cardId,
-                                boarding_station_id: stationId
+                                station_id: stationId
                             })
                         });
-                        addAlert(`Rush hour trip: Card ${cardId} at Station ${stationId}`, 'success');
+                        
+                        if (response.ok) {
+                            addAlert(`Rush hour trip: Card ${cardId} at Station ${stationId}`, 'success');
+                        } else {
+                            const error = await response.json();
+                            const errorMsg = typeof error.detail === 'string' ? error.detail : 'Failed to create trip';
+                            addAlert(`Rush hour trip failed: ${errorMsg}`, 'error');
+                        }
                     } catch (error) {
                         addAlert(`Rush hour trip failed: ${error.message}`, 'error');
                     }
@@ -682,14 +703,18 @@
             for (let i = 0; i < 3; i++) {
                 setTimeout(async () => {
                     try {
-                        await fetch('/api/v1/trips/start', {
+                        const response = await fetch('/api/v1/trips/start', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 card_id: i + 1,
-                                boarding_station_id: 101 + i
+                                station_id: 101 + i
                             })
                         });
+                        
+                        if (response.ok) {
+                            addAlert(`Multi trip created: Card ${i + 1} at Station ${101 + i}`, 'success');
+                        }
                     } catch (error) {
                         console.error('Trip creation failed:', error);
                     }
@@ -704,18 +729,27 @@
             
             for (let i = 1; i <= 3; i++) {
                 setTimeout(async () => {
+                    const amount = 5000 + (i * 1000);
                     try {
-                        await fetch('/api/v1/cards/recharge', {
+                        const response = await fetch('/api/v1/cards/recharge', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 card_id: i,
-                                amount: 5000 + (i * 1000)
+                                amount: amount,
+                                payment_method: "mass_simulation"
                             })
                         });
-                        addAlert(`Card ${i} recharged with $${5000 + (i * 1000)}`, 'success');
+                        
+                        if (response.ok) {
+                            addAlert(`Card ${i} recharged with $${amount}`, 'success');
+                        } else {
+                            const error = await response.json();
+                            const errorMsg = typeof error.detail === 'string' ? error.detail : 'Recharge failed';
+                            addAlert(`Recharge failed for card ${i}: ${errorMsg}`, 'error');
+                        }
                     } catch (error) {
-                        addAlert(`Recharge failed for card ${i}`, 'error');
+                        addAlert(`Recharge failed for card ${i}: ${error.message}`, 'error');
                     }
                 }, i * 800);
             }
@@ -862,39 +896,71 @@
                     latencies.push({
                         endpoint,
                         latency: latency.toFixed(1),
-                        status: response.ok ? 'ok' : 'error'
+                        status: response.ok ? 'ok' : 'error',
+                        responseStatus: response.status
                     });
                 } catch (error) {
+                    // Clear API down error - check if it's a network error
+                    const isNetworkError = error.message.includes('fetch') || 
+                                          error.message.includes('Failed to fetch') ||
+                                          error.message.includes('NetworkError') ||
+                                          error.name === 'TypeError';
+                    
                     latencies.push({
                         endpoint,
-                        latency: 'Error',
-                        status: 'error'
+                        latency: isNetworkError ? 'API DOWN' : 'ERROR',
+                        status: 'error',
+                        errorType: isNetworkError ? 'network' : 'other',
+                        errorMessage: error.message
                     });
                 }
             }
             
-            // Calculate average latency
-            const validLatencies = latencies.filter(l => l.latency !== 'Error' && l.status === 'ok');
+            // Calculate average latency only for successful requests
+            const validLatencies = latencies.filter(l => 
+                typeof l.latency === 'string' && !isNaN(parseFloat(l.latency)) && l.status === 'ok'
+            );
+            
             if (validLatencies.length > 0) {
                 const avgLatency = validLatencies.reduce((sum, l) => sum + parseFloat(l.latency), 0) / validLatencies.length;
                 document.getElementById('avgLatency').textContent = avgLatency.toFixed(1) + 'ms';
             } else {
-                document.getElementById('avgLatency').textContent = 'N/A';
+                document.getElementById('avgLatency').textContent = 'API DOWN';
             }
             
-            // Render endpoint latencies
+            // Render endpoint latencies with better error handling
             endpointContainer.innerHTML = latencies.map(item => {
                 let className = 'endpoint';
-                if (item.status === 'error') className += ' error';
-                else if (parseFloat(item.latency) > 50) className += ' slow';
+                let displayLatency = item.latency;
+                
+                if (item.status === 'error') {
+                    className += ' error';
+                    // Show specific error type
+                    if (item.errorType === 'network') {
+                        displayLatency = '🚫 API DOWN';
+                    } else {
+                        displayLatency = '❌ ERROR';
+                    }
+                } else if (parseFloat(item.latency) > 50) {
+                    className += ' slow';
+                    displayLatency = item.latency + 'ms';
+                } else {
+                    displayLatency = item.latency + 'ms';
+                }
                 
                 return `
                     <div class="${className}">
                         <div class="endpoint-path">${item.endpoint}</div>
-                        <div class="endpoint-latency">${item.latency}${item.latency !== 'Error' ? 'ms' : ''}</div>
+                        <div class="endpoint-latency">${displayLatency}</div>
                     </div>
                 `;
             }).join('');
+            
+            // Add alert if all endpoints are down
+            const allDown = latencies.every(l => l.status === 'error' && l.errorType === 'network');
+            if (allDown) {
+                addAlert('🚫 All API endpoints are down - API server may be offline', 'error');
+            }
         }
         
         async function refreshData() {
