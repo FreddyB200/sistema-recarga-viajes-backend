@@ -9,251 +9,459 @@
 
 A high-performance, distributed API system simulating Bogotá's Integrated Public Transportation System (SITP/TransMilenio) card recharge and trip tracking services. Built with FastAPI, PostgreSQL, and Redis, this project demonstrates practical implementation of distributed systems concepts, caching strategies, and database optimization techniques.
 
-## 🎯 Technical Highlights
+> **Note:** This project uses a separate repository for the database schema and initialization scripts. You can find it at [travel-recharge-database](https://github.com/FreddyB200/travel-recharge-database).
 
-### Performance Optimization
-- **Redis Caching Layer**: Achieved ~25x latency reduction (from 69.52ms to 2.76ms) on critical endpoints
-- **Database Optimization**: Implemented stored procedures for complex operations
-- **Connection Pooling**: Optimized database connections for high throughput
-- **Async Operations**: Leveraged FastAPI's async capabilities for better concurrency
+## 📋 Table of Contents
 
-### Architecture
-- **Distributed Services**: API, Database, and Cache services deployed independently
-- **Virtual Network**: Inter-service communication over a configured internal network
-- **Containerization**: Docker-based deployment for consistency and scalability
-- **Health Monitoring**: Implemented health check endpoints for service monitoring
+- [🎯 Project Overview](#-project-overview)
+- [🏗️ System Architecture](#️-system-architecture)
+- [📊 Performance Metrics](#-performance-metrics)
+- [🚀 Getting Started](#-getting-started)
+- [📚 API Documentation](#-api-documentation)
+- [🧪 Testing](#-testing)
+- [📈 Monitoring](#-monitoring)
+- [💡 Technical Decisions](#-technical-decisions)
+- [📖 Documentation](#-documentation)
+- [📝 License](#-license)
 
-### Technical Stack
-- **FastAPI**: High-performance async API framework
-- **PostgreSQL**: Robust relational database with complex queries
-- **Redis**: In-memory caching for performance optimization
-- **Docker**: Containerization for deployment consistency
-- **SQLAlchemy**: ORM for database operations
-- **Pydantic**: Data validation and settings management
+## 🎯 Project Overview
 
-## 📊 Performance Metrics
+### Key Features
+```mermaid
+mindmap
+  root((Travel Recharge API))
+    Performance
+      Redis Caching
+      Connection Pooling
+      Async Operations
+      25x Latency Reduction
+    Architecture
+      Distributed Services
+      Microservices Ready
+      Docker Containers
+      Health Monitoring
+    Functionality
+      Card Management
+      Trip Tracking
+      Station Info
+      Revenue Analytics
+    Tech Stack
+      FastAPI
+      PostgreSQL
+      Redis
+      Docker
+```
 
-### Latency Improvements
-| Endpoint | Without Cache | With Cache | Improvement |
-|----------|--------------|------------|-------------|
-| `/trips/total` | 57.34ms | 3.2ms | 17.9x |
-| `/finance/revenue` | 62.23ms | 2.55ms | 24.4x |
-| `/users/active/count` | 9.11ms | 2.8ms | 3.25x |
+### Core Objectives
+- **High Performance**: Sub-5ms response times on cached endpoints
+- **Scalability**: Distributed architecture ready for microservices
+- **Reliability**: Comprehensive error handling and monitoring
+- **Real-world Simulation**: Based on Bogotá's public transportation system
 
-### Throughput Testing
-- **Apache Benchmark Results**:
-  ```bash
-  ab -n 1000 -c 100 http://localhost:8000/trips/total
-  ```
-  - Requests per second: 850
-  - Average latency: 3.2ms
-  - 99th percentile: 5.1ms
+### Technology Stack
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **API Framework** | FastAPI | High-performance async web framework |
+| **Database** | PostgreSQL | ACID-compliant relational database |
+| **Cache** | Redis | In-memory caching for performance |
+| **Containerization** | Docker | Consistent deployment environments |
+| **ORM** | SQLAlchemy | Database abstraction layer |
+| **Validation** | Pydantic | Data validation and serialization |
 
 ## 🏗️ System Architecture
 
-### Network Topology
+### Current Implementation (Single Service per VM)
 ```mermaid
-graph TD
-    Client[Client] --> API[FastAPI Service]
-    API --> Redis[Redis Cache]
-    API --> PostgreSQL[PostgreSQL DB]
-    Redis --> PostgreSQL
+graph TB
+    subgraph "Development: Docker Host"
+        Client[Client] --> API[FastAPI Container :8000]
+        API --> Redis[Redis Container :6379]
+        API --> PostgreSQL[PostgreSQL Container :5432]
+        
+        subgraph "Shared Network"
+            API
+            Redis
+            PostgreSQL
+        end
+    end
+    
+    subgraph "Production: Distributed VMs"
+        Client2[Client] --> API2[FastAPI Server<br/>VM1 :8000]
+        API2 --> Redis2[Redis Server<br/>VM2 :6379]
+        API2 --> PostgreSQL2[PostgreSQL Server<br/>VM3 :5432]
+    end
+    
+    style API fill:#e1f5fe
+    style Redis fill:#fff3e0
+    style PostgreSQL fill:#e8f5e8
+    style API2 fill:#e1f5fe
+    style Redis2 fill:#fff3e0
+    style PostgreSQL2 fill:#e8f5e8
 ```
 
-### Request Flow
+### Data Flow Architecture
 ```mermaid
 sequenceDiagram
     participant C as Client
-    participant F as FastAPI
-    participant R as Redis
-    participant P as PostgreSQL
+    participant API as FastAPI
+    participant R as Redis Cache
+    participant DB as PostgreSQL
 
-    C->>F: HTTP Request
-    F->>R: Check Cache
-    alt Cache Hit
-        R-->>F: Return Cached Data
-        F-->>C: HTTP Response
-    else Cache Miss
-        F->>P: Query Database
-        P-->>F: Return Data
-        F->>R: Update Cache
-        F-->>C: HTTP Response
+    Note over C,DB: Cached Request Flow
+    C->>API: GET /api/v1/trips/total
+    API->>R: CHECK cache key
+    
+    alt Cache Hit (Fast Path)
+        R-->>API: Return cached data
+        API-->>C: JSON Response (2-3ms)
+    else Cache Miss (Slow Path)
+        API->>DB: Execute SQL query
+        DB-->>API: Return result set
+        API->>R: Store in cache (TTL: 300s)
+        API-->>C: JSON Response (50-70ms)
     end
+    
+    Note over C,DB: Write Operation Flow
+    C->>API: POST /api/v1/trips/start
+    API->>DB: BEGIN transaction
+    API->>DB: Validate card & station
+    API->>DB: Insert trip record
+    API->>DB: COMMIT transaction
+    API->>R: Invalidate related caches
+    API-->>C: Trip started confirmation
 ```
+
+### Database Schema Overview
+```mermaid
+erDiagram
+    USERS ||--o{ CARDS : owns
+    CARDS ||--o{ TRIPS : used_for
+    STATIONS ||--o{ TRIPS : start_end
+    TRIPS ||--o{ FARES : charged
+    LOCATIONS ||--o{ STATIONS : located_at
+    
+    USERS {
+        int user_id PK
+        string name
+        string email
+        datetime created_at
+        boolean is_active
+    }
+    
+    CARDS {
+        int card_id PK
+        int user_id FK
+        decimal balance
+        string status
+        datetime created_at
+    }
+    
+    TRIPS {
+        int trip_id PK
+        int card_id FK
+        int boarding_station_id FK
+        int disembarking_station_id FK
+        datetime boarding_time
+        datetime disembarking_time
+        boolean is_transfer
+    }
+    
+    STATIONS {
+        int station_id PK
+        string name
+        string station_type
+        boolean is_active
+        int location_id FK
+    }
+```
+
+## 📊 Performance Metrics
+
+### Latency Improvements with Redis
+| Endpoint | Without Cache | With Cache | Improvement | Cache TTL |
+|----------|--------------|------------|-------------|-----------|
+| `/api/v1/trips/total` | 57.34ms | 3.2ms | **17.9x faster** | 300s |
+| `/api/v1/finance/revenue` | 62.23ms | 2.55ms | **24.4x faster** | 300s |
+| `/api/v1/users/active/count` | 9.11ms | 2.8ms | **3.25x faster** | 60s |
+
+> **Note**: These are example metrics. Run `python scripts/latency_test.py` to get real measurements from your setup.
 
 ## 🚀 Getting Started
 
-### Prerequisites
-- Python 3.9+
-- Docker and Docker Compose
-- PostgreSQL 13+
-- Redis 6+
+### Prerequisites Checklist
+- [ ] Python 3.9+ installed
+- [ ] Docker and Docker Compose installed
+- [ ] Git installed
+- [ ] 4GB+ RAM available
+- [ ] Ports 8000, 5432, 6379 available
 
-### Quick Start
-1. Clone the repository:
+### Deployment Options
+
+#### 🐳 Option A: Single Host with Docker (Current Implementation)
 ```bash
-git clone https://github.com/yourusername/travel-recharge-api.git
+# 1. Clone repository
+git clone https://github.com/FreddyB200/travel-recharge-api.git
 cd travel-recharge-api
-```
 
-2. Set up environment variables:
-```bash
+# 2. Setup environment and start services
 cp docker.env.example docker.env
 # Edit docker.env with your configuration
+docker-compose up -d --build
 ```
+**📖 [Complete Docker Setup Guide →](DOCKER_SETUP.md)**
 
-3. Start the services:
+#### 🌐 Option B: Distributed Deployment (Production Ready)
 ```bash
-docker-compose up -d
+# Deploy each service on separate VMs
+# PostgreSQL on VM1, Redis on VM2, FastAPI on VM3
 ```
+**📖 [Complete Distributed Deployment Guide →](deployment.md)**
 
-4. Access the API documentation:
-```
-http://localhost:8000/docs
+### Quick Verification
+```bash
+# Check if all services are running
+curl http://localhost:8000/api/v1/health
+
+# Test database connection
+curl http://localhost:8000/api/v1/health/db
+
+# Test Redis connection  
+curl http://localhost:8000/api/v1/health/cache
+
+# View API documentation
+open http://localhost:8000/docs
 ```
 
 ## 📚 API Documentation
 
-### Main Endpoints
+### Currently Implemented Endpoints
 
-#### User Management
-- `GET /api/v1/users/count` - Get total user count
-- `GET /api/v1/users/active/count` - Get active user count (cached)
-- `GET /api/v1/users/latest` - Get latest registered user
+<details>
+<summary><strong>👥 User Management</strong></summary>
 
-#### Card Management
-- `POST /api/v1/cards/recharge` - Recharge a travel card
-- `GET /api/v1/cards/{card_id}/balance` - Check card balance
-- `GET /api/v1/cards/{card_id}/history` - View recharge history
+| Method | Endpoint | Description | Status | Cached |
+|--------|----------|-------------|--------|--------|
+| `GET` | `/api/v1/users/count` | Get total user count | ✅ | ❌ |
+| `GET` | `/api/v1/users/active/count` | Get active user count | ✅ | ✅ (60s) |
+| `GET` | `/api/v1/users/latest` | Get latest registered user | ✅ | ❌ |
 
-#### Trip Management
-- `POST /api/v1/trips/start` - Start a new trip
-- `POST /api/v1/trips/end` - End a trip
-- `GET /api/v1/trips/{trip_id}` - Get trip details
-- `GET /api/v1/trips/user/{user_id}` - Get user's trip history
-- `GET /api/v1/trips/total` - Get total trips (cached)
-- `GET /api/v1/trips/total/localities` - Get trips by locality (cached)
+</details>
 
-#### Station Information
-- `GET /api/v1/stations` - List all stations
-- `GET /api/v1/stations/{station_id}/arrivals` - Get real-time arrivals
-- `GET /api/v1/stations/{station_id}/alerts` - Get station alerts
+<details>
+<summary><strong>💳 Card Management</strong></summary>
 
-#### Finance
-- `GET /api/v1/finance/revenue` - Get total revenue (cached)
-- `GET /api/v1/finance/revenue/localities` - Get revenue by locality (cached)
+| Method | Endpoint | Description | Status | Cached |
+|--------|----------|-------------|--------|--------|
+| `POST` | `/api/v1/cards/recharge` | Recharge a travel card | ✅ | ❌ |
+| `GET` | `/api/v1/cards/{card_id}/balance` | Check card balance | ✅ | ✅ (300s) |
+| `GET` | `/api/v1/cards/{card_id}/history` | View recharge history | ✅ | ✅ (300s) |
 
-#### Analytics
-- `GET /api/v1/analytics/trips/total` - Get total trips (cached)
-- `GET /api/v1/analytics/revenue` - Get total revenue (cached)
-- `GET /api/v1/analytics/users/active` - Get active user count (cached)
+</details>
 
-#### Health Checks
-- `GET /api/v1/health` - Overall system health
-- `GET /api/v1/health/db` - Database connection status
-- `GET /api/v1/health/cache` - Redis connection status
+<details>
+<summary><strong>🚇 Trip Management</strong></summary>
+
+| Method | Endpoint | Description | Status | Cached |
+|--------|----------|-------------|--------|--------|
+| `POST` | `/api/v1/trips/start` | Start a new trip | ✅ | ❌ |
+| `POST` | `/api/v1/trips/end` | End a trip | 🚧 | ❌ |
+| `GET` | `/api/v1/trips/total` | Get total trips statistics | ✅ | ✅ (300s) |
+| `GET` | `/api/v1/trips/total/localities` | Get trips by locality | ✅ | ✅ (300s) |
+| `GET` | `/api/v1/trips/card/{card_id}` | Get trips for specific card | ✅ | ✅ (300s) |
+
+</details>
+
+<details>
+<summary><strong>🚉 Station Information</strong></summary>
+
+| Method | Endpoint | Description | Status | Cached |
+|--------|----------|-------------|--------|--------|
+| `GET` | `/api/v1/stations` | List all stations | ✅ | ✅ (60s) |
+| `GET` | `/api/v1/stations/{station_id}/arrivals` | Get real-time arrivals | ✅ | ✅ (60s) |
+| `GET` | `/api/v1/stations/{station_id}/alerts` | Get station alerts | ✅ | ✅ (60s) |
+
+</details>
+
+<details>
+<summary><strong>💰 Finance & Revenue</strong></summary>
+
+| Method | Endpoint | Description | Status | Cached |
+|--------|----------|-------------|--------|--------|
+| `GET` | `/api/v1/finance/revenue` | Get total revenue | ✅ | ✅ (300s) |
+| `GET` | `/api/v1/finance/revenue/localities` | Get revenue by locality | ✅ | ✅ (300s) |
+
+</details>
+
+<details>
+<summary><strong>❤️ Health Checks</strong></summary>
+
+| Method | Endpoint | Description | Status | Cached |
+|--------|----------|-------------|--------|--------|
+| `GET` | `/api/v1/health` | Overall system health | ✅ | ❌ |
+| `GET` | `/api/v1/health/db` | Database connection status | ✅ | ❌ |
+| `GET` | `/api/v1/health/cache` | Redis connection status | ✅ | ❌ |
+
+</details>
+
+**Legend**: ✅ Implemented | 🚧 In Progress | ❌ Not Started
+
+### Interactive Documentation
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+- **OpenAPI Schema**: http://localhost:8000/openapi.json
 
 ## 🧪 Testing
 
-### Unit Testing
-Run the test suite with pytest:
+### Current Testing Implementation
 ```bash
 # Install test dependencies
 pip install -r requirements-test.txt
 
-# Run all tests
-pytest
-
-# Run specific test file
-pytest tests/test_users.py
-
-# Run with coverage report
-pytest --cov=app tests/
-
-# Run with verbose output
-pytest -v
-
-# Run specific test function
-pytest tests/test_users.py::test_get_users_count_empty
-```
-
-### Test Structure
-```
-tests/
-├── conftest.py           # Shared test fixtures and configuration
-├── unit/                 # Unit tests
-│   ├── test_users.py     # User endpoint tests
-│   ├── test_trips.py     # Trip endpoint tests
-│   ├── test_finance.py   # Finance endpoint tests
-│   └── test_health.py    # Health check tests
-└── integration/          # Integration tests (coming soon)
-```
-
-### Test Database
-- Tests use SQLite in-memory database
-- Each test gets a fresh database instance
-- No need to configure external database for testing
-- Database is automatically created and destroyed for each test
-
-### Mock Redis
-- Redis is mocked for testing
-- Cache behavior is simulated
-- No need for actual Redis instance during testing
-
-### Running Tests in Docker
-```bash
-# Run tests in Docker container
-docker-compose run api pytest
-
-# Run tests with coverage in Docker
-docker-compose run api pytest --cov=app tests/
-```
-
-### Test Coverage
-To generate a coverage report:
-```bash
-# Install coverage tools
-pip install pytest-cov
-
-# Run tests with coverage
-pytest --cov=app tests/ --cov-report=term-missing
-
-# Generate HTML coverage report
+# Run all tests with coverage
 pytest --cov=app tests/ --cov-report=html
+
+# Run specific test categories
+pytest tests/unit/test_users.py -v
+pytest tests/unit/test_trips.py -v
+pytest tests/unit/test_finance.py -v
+
+# Performance testing (available)
+python scripts/latency_test.py
+python scripts/latency_non_cacheable.py
 ```
+
+### Test Environment
+- **Database**: SQLite in-memory (isolated per test)
+- **Cache**: Mock Redis client (no external dependencies)
+- **API Client**: FastAPI TestClient (fast integration testing)
 
 ## 📈 Monitoring
 
-### Health Checks
-- `GET /health` - Overall system health
-- `GET /health/db` - Database connection status
-- `GET /health/cache` - Redis connection status
+### Current Health Checks
+```bash
+# Basic health endpoints
+curl http://localhost:8000/api/v1/health        # System status
+curl http://localhost:8000/api/v1/health/db     # Database connectivity  
+curl http://localhost:8000/api/v1/health/cache  # Redis connectivity
+```
 
-### Metrics
-- Response times
-- Cache hit/miss rates
-- Error rates
-- Resource usage
+## 📋 Roadmap & TODO
+
+### 🎯 Phase 1: Core Features (Current)
+- [x] Basic API endpoints with FastAPI
+- [x] PostgreSQL database integration
+- [x] Redis caching layer
+- [x] Docker containerization
+- [x] Unit testing framework
+- [x] Health check endpoints
+- [x] Basic performance testing scripts
+
+### 🚀 Phase 2: Enhanced Features (Next)
+- [ ] **Monitoring Dashboard** (in progress)
+  - [ ] Basic web interface showing system metrics
+  - [ ] Real-time latency monitoring
+  - [ ] Cache hit/miss rates visualization
+  - [ ] Resource usage charts
+- [ ] **Complete Trip Management**
+  - [ ] Trip end functionality
+  - [ ] Trip history detailed views
+- [ ] **Enhanced Station Features**
+  - [ ] Real-time arrival simulation
+  - [ ] Alert management system
+- [ ] **Load Testing Suite**
+  - [ ] Apache Benchmark integration
+  - [ ] Stress testing scripts
+  - [ ] Performance regression testing
+
+### 🏗️ Phase 3: Production Ready (Future)
+- [ ] **High Availability Architecture**
+  - [ ] Load balancer configuration
+  - [ ] Multiple API server instances
+  - [ ] Redis master/replica setup
+  - [ ] PostgreSQL read replicas
+- [ ] **Advanced Monitoring**
+  - [ ] Prometheus metrics integration
+  - [ ] Grafana dashboards
+  - [ ] Log aggregation with ELK stack
+  - [ ] Alerting system
+- [ ] **Security & Performance**
+  - [ ] API rate limiting
+  - [ ] JWT authentication
+  - [ ] Database query optimization
+  - [ ] CDN integration
+- [ ] **CI/CD Pipeline**
+  - [ ] GitHub Actions workflows
+  - [ ] Automated testing
+  - [ ] Docker image building
+  - [ ] Deployment automation
+
+### 🎨 Phase 4: Standalone Dashboard (Vision)
+- [ ] **React/Vue.js Frontend**
+  - [ ] Real-time metrics dashboard
+  - [ ] Interactive charts and graphs
+  - [ ] System administration interface
+  - [ ] Mobile-responsive design
+- [ ] **Advanced Analytics**
+  - [ ] Trip pattern analysis
+  - [ ] Revenue forecasting
+  - [ ] User behavior insights
+  - [ ] Station performance analytics
 
 ## 💡 Technical Decisions
 
-### Why FastAPI?
-- Native async support
-- Automatic API documentation
-- High performance
-- Type checking with Pydantic
+### Architecture Decisions Record (ADR)
 
-### Why Redis?
-- In-memory caching for speed
-- Built-in TTL support
-- Atomic operations
-- Pub/Sub capabilities
+#### Why FastAPI?
+```mermaid
+graph LR
+    FastAPI[FastAPI Choice] --> Performance[High Performance<br/>~3x faster than Flask]
+    FastAPI --> Async[Native Async Support<br/>Non-blocking I/O]
+    FastAPI --> Docs[Auto Documentation<br/>OpenAPI + Swagger]
+    FastAPI --> Types[Type Safety<br/>Pydantic Integration]
+    FastAPI --> Modern[Modern Python<br/>3.6+ Features]
+```
 
-### Why PostgreSQL?
-- ACID compliance
-- Complex query support
-- Stored procedures
-- JSON support
+#### Why Redis for Caching?
+- **Speed**: In-memory storage with microsecond latency
+- **TTL Support**: Built-in expiration for cache invalidation
+- **Data Types**: Rich data structures (strings, hashes, lists, sets)
+- **Scalability**: Clustering and replication support
+- **Atomic Operations**: Thread-safe operations
+
+#### Why PostgreSQL?
+- **ACID Compliance**: Reliable transactions
+- **Complex Queries**: Advanced SQL features, JOINs, CTEs
+- **JSON Support**: Native JSON/JSONB for flexible data
+- **Performance**: Query optimization, indexing, partitioning
+- **Ecosystem**: Rich tooling and extension ecosystem
+
+### Performance Optimization Strategies
+
+1. **Database Level**:
+   - Connection pooling with SQLAlchemy
+   - Optimized queries with proper indexing
+   - Read replicas for scaling reads
+
+2. **Application Level**:
+   - Async/await for non-blocking operations
+   - Request/response caching with Redis
+   - Lazy loading of related data
+
+3. **Infrastructure Level**:
+   - Container orchestration for scaling
+   - Load balancing across API instances
+   - CDN for static content delivery
+
+## 📖 Documentation
+
+### Setup Guides
+- [📦 Docker Setup Guide](DOCKER_SETUP.md) - Single-host development setup
+- [🌐 Distributed Deployment Guide](deployment.md) - Multi-VM production deployment
+
+### Additional Resources
+- [🏗️ Architecture Deep Dive](ARCHITECTURE.md) - Detailed system architecture
+- [🔧 API Reference](http://localhost:8000/docs) - Interactive API documentation
+- [📊 Performance Guide](scripts/README.md) - Load testing and optimization
 
 ## 📝 License
 
@@ -261,7 +469,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
-- [Redis Documentation](https://redis.io/documentation)
-- [Docker Documentation](https://docs.docker.com/)
+- **Frameworks & Libraries**:
+  - [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
+  - [SQLAlchemy](https://www.sqlalchemy.org/) - Python SQL toolkit
+  - [Redis](https://redis.io/) - In-memory data structure store
+  
+- **Infrastructure**:
+  - [Docker](https://www.docker.com/) - Containerization platform
+  - [PostgreSQL](https://www.postgresql.org/) - Advanced open source database
