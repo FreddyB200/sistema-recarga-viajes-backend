@@ -226,10 +226,11 @@ def get_total_trips(
         query = text("""
             SELECT 
                 COUNT(*) as total_trips,
-                COUNT(CASE WHEN end_time IS NOT NULL THEN 1 END) as completed_trips,
-                COUNT(CASE WHEN end_time IS NULL THEN 1 END) as active_trips,
-                SUM(CASE WHEN end_time IS NOT NULL THEN fare ELSE 0 END) as total_revenue
-            FROM trips
+                COUNT(CASE WHEN disembarking_time IS NOT NULL THEN 1 END) as completed_trips,
+                COUNT(CASE WHEN disembarking_time IS NULL THEN 1 END) as active_trips,
+                SUM(CASE WHEN disembarking_time IS NOT NULL THEN f.value ELSE 0 END) as total_revenue
+            FROM trips t
+            LEFT JOIN fares f ON t.fare_id = f.fare_id
         """)
         result = db.execute(query).first()
 
@@ -250,10 +251,11 @@ def get_total_trips(
         query = text("""
             SELECT 
                 COUNT(*) as total_trips,
-                COUNT(CASE WHEN end_time IS NOT NULL THEN 1 END) as completed_trips,
-                COUNT(CASE WHEN end_time IS NULL THEN 1 END) as active_trips,
-                SUM(CASE WHEN end_time IS NOT NULL THEN fare ELSE 0 END) as total_revenue
-            FROM trips
+                COUNT(CASE WHEN disembarking_time IS NOT NULL THEN 1 END) as completed_trips,
+                COUNT(CASE WHEN disembarking_time IS NULL THEN 1 END) as active_trips,
+                SUM(CASE WHEN disembarking_time IS NOT NULL THEN f.value ELSE 0 END) as total_revenue
+            FROM trips t
+            LEFT JOIN fares f ON t.fare_id = f.fare_id
         """)
         result = db.execute(query).first()
 
@@ -282,14 +284,16 @@ def get_total_trips_by_localities(
         query = text("""
             WITH trip_stats AS (
                 SELECT 
-                    s.locality,
+                    l.name as locality,
                     COUNT(*) as total_trips,
-                    COUNT(CASE WHEN t.end_time IS NOT NULL THEN 1 END) as completed_trips,
-                    COUNT(CASE WHEN t.end_time IS NULL THEN 1 END) as active_trips,
-                    SUM(CASE WHEN t.end_time IS NOT NULL THEN t.fare ELSE 0 END) as total_revenue
+                    COUNT(CASE WHEN t.disembarking_time IS NOT NULL THEN 1 END) as completed_trips,
+                    COUNT(CASE WHEN t.disembarking_time IS NULL THEN 1 END) as active_trips,
+                    SUM(CASE WHEN t.disembarking_time IS NOT NULL THEN f.value ELSE 0 END) as total_revenue
                 FROM trips t
-                JOIN stations s ON t.start_station_id = s.station_id
-                GROUP BY s.locality
+                JOIN stations s ON t.boarding_station_id = s.station_id
+                JOIN locations l ON s.location_id = l.location_id
+                LEFT JOIN fares f ON t.fare_id = f.fare_id
+                GROUP BY l.name
             )
             SELECT 
                 locality,
@@ -325,14 +329,16 @@ def get_total_trips_by_localities(
         query = text("""
             WITH trip_stats AS (
                 SELECT 
-                    s.locality,
+                    l.name as locality,
                     COUNT(*) as total_trips,
-                    COUNT(CASE WHEN t.end_time IS NOT NULL THEN 1 END) as completed_trips,
-                    COUNT(CASE WHEN t.end_time IS NULL THEN 1 END) as active_trips,
-                    SUM(CASE WHEN t.end_time IS NOT NULL THEN t.fare ELSE 0 END) as total_revenue
+                    COUNT(CASE WHEN t.disembarking_time IS NOT NULL THEN 1 END) as completed_trips,
+                    COUNT(CASE WHEN t.disembarking_time IS NULL THEN 1 END) as active_trips,
+                    SUM(CASE WHEN t.disembarking_time IS NOT NULL THEN f.value ELSE 0 END) as total_revenue
                 FROM trips t
-                JOIN stations s ON t.start_station_id = s.station_id
-                GROUP BY s.locality
+                JOIN stations s ON t.boarding_station_id = s.station_id
+                JOIN locations l ON s.location_id = l.location_id
+                LEFT JOIN fares f ON t.fare_id = f.fare_id
+                GROUP BY l.name
             )
             SELECT 
                 locality,
