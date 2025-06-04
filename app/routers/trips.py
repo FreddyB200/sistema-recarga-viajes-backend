@@ -60,7 +60,7 @@ def start_trip(
 
         # Check if station exists and is active
         station_query = text("""
-            SELECT station_id, name, locality, status, capacity, current_occupancy 
+            SELECT station_id, name, station_type, is_active 
             FROM stations WHERE station_id = :station_id
         """)
         station = db.execute(
@@ -68,14 +68,14 @@ def start_trip(
 
         if not station:
             raise HTTPException(status_code=404, detail="Station not found")
-        if station.status != "active":
+        if not station.is_active:
             raise HTTPException(
                 status_code=400, detail="Station is not active")
 
         # Check if card has an active trip
         active_trip_query = text("""
             SELECT trip_id FROM trips 
-            WHERE card_id = :card_id AND status = 'in_progress'
+            WHERE card_id = :card_id AND disembarking_time IS NULL
         """)
         active_trip = db.execute(
             active_trip_query, {"card_id": trip.card_id}).first()
@@ -86,9 +86,9 @@ def start_trip(
 
         # Create new trip
         trip_query = text("""
-            INSERT INTO trips (card_id, start_station_id, start_time, status)
-            VALUES (:card_id, :station_id, CURRENT_TIMESTAMP, 'in_progress')
-            RETURNING trip_id, start_time
+            INSERT INTO trips (card_id, boarding_station_id, boarding_time)
+            VALUES (:card_id, :station_id, CURRENT_TIMESTAMP)
+            RETURNING trip_id, boarding_time
         """)
         result = db.execute(
             trip_query,
@@ -107,8 +107,8 @@ def start_trip(
         return {
             "trip_id": result.trip_id,
             "card_id": trip.card_id,
-            "start_station_id": trip.station_id,
-            "start_time": result.start_time.isoformat(),
+            "boarding_station_id": trip.station_id,
+            "boarding_time": result.boarding_time.isoformat(),
             "status": "in_progress"
         }
 
@@ -393,19 +393,20 @@ def get_card_trips(
             SELECT 
                 t.trip_id,
                 t.card_id,
-                t.start_station_id,
-                t.end_station_id,
-                t.start_time,
-                t.end_time,
-                t.status,
-                t.fare,
-                s1.name as start_station_name,
-                s2.name as end_station_name
+                t.boarding_station_id,
+                t.disembarking_station_id,
+                t.boarding_time,
+                t.disembarking_time,
+                t.is_transfer,
+                f.value as fare,
+                s1.name as boarding_station_name,
+                s2.name as disembarking_station_name
             FROM trips t
-            LEFT JOIN stations s1 ON t.start_station_id = s1.station_id
-            LEFT JOIN stations s2 ON t.end_station_id = s2.station_id
+            LEFT JOIN stations s1 ON t.boarding_station_id = s1.station_id
+            LEFT JOIN stations s2 ON t.disembarking_station_id = s2.station_id
+            LEFT JOIN fares f ON t.fare_id = f.fare_id
             WHERE t.card_id = :card_id
-            ORDER BY t.start_time DESC
+            ORDER BY t.boarding_time DESC
             LIMIT 10
         """)
         results = db.execute(query, {"card_id": card_id}).fetchall()
@@ -414,13 +415,13 @@ def get_card_trips(
             {
                 "trip_id": r.trip_id,
                 "card_id": r.card_id,
-                "start_station_id": r.start_station_id,
-                "end_station_id": r.end_station_id,
-                "start_station_name": r.start_station_name,
-                "end_station_name": r.end_station_name,
-                "start_time": r.start_time.isoformat(),
-                "end_time": r.end_time.isoformat() if r.end_time else None,
-                "status": r.status,
+                "boarding_station_id": r.boarding_station_id,
+                "disembarking_station_id": r.disembarking_station_id,
+                "boarding_station_name": r.boarding_station_name,
+                "disembarking_station_name": r.disembarking_station_name,
+                "boarding_time": r.boarding_time.isoformat(),
+                "disembarking_time": r.disembarking_time.isoformat() if r.disembarking_time else None,
+                "is_transfer": r.is_transfer,
                 "fare": float(r.fare) if r.fare else None
             }
             for r in results
@@ -449,19 +450,20 @@ def get_card_trips(
             SELECT 
                 t.trip_id,
                 t.card_id,
-                t.start_station_id,
-                t.end_station_id,
-                t.start_time,
-                t.end_time,
-                t.status,
-                t.fare,
-                s1.name as start_station_name,
-                s2.name as end_station_name
+                t.boarding_station_id,
+                t.disembarking_station_id,
+                t.boarding_time,
+                t.disembarking_time,
+                t.is_transfer,
+                f.value as fare,
+                s1.name as boarding_station_name,
+                s2.name as disembarking_station_name
             FROM trips t
-            LEFT JOIN stations s1 ON t.start_station_id = s1.station_id
-            LEFT JOIN stations s2 ON t.end_station_id = s2.station_id
+            LEFT JOIN stations s1 ON t.boarding_station_id = s1.station_id
+            LEFT JOIN stations s2 ON t.disembarking_station_id = s2.station_id
+            LEFT JOIN fares f ON t.fare_id = f.fare_id
             WHERE t.card_id = :card_id
-            ORDER BY t.start_time DESC
+            ORDER BY t.boarding_time DESC
             LIMIT 10
         """)
         results = db.execute(query, {"card_id": card_id}).fetchall()
@@ -470,13 +472,13 @@ def get_card_trips(
             {
                 "trip_id": r.trip_id,
                 "card_id": r.card_id,
-                "start_station_id": r.start_station_id,
-                "end_station_id": r.end_station_id,
-                "start_station_name": r.start_station_name,
-                "end_station_name": r.end_station_name,
-                "start_time": r.start_time.isoformat(),
-                "end_time": r.end_time.isoformat() if r.end_time else None,
-                "status": r.status,
+                "boarding_station_id": r.boarding_station_id,
+                "disembarking_station_id": r.disembarking_station_id,
+                "boarding_station_name": r.boarding_station_name,
+                "disembarking_station_name": r.disembarking_station_name,
+                "boarding_time": r.boarding_time.isoformat(),
+                "disembarking_time": r.disembarking_time.isoformat() if r.disembarking_time else None,
+                "is_transfer": r.is_transfer,
                 "fare": float(r.fare) if r.fare else None
             }
             for r in results
