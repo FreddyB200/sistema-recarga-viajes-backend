@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_redis_client
 import redis
 import logging
+import os
 from app.routers import users, trips, finance, cards, stations, dashboard
 
 # Configure logging
@@ -17,8 +18,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Mount static files conditionally
+static_dir = "static"
+if os.path.exists(static_dir) and os.path.isdir(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    logger.info(f"Static files mounted from {static_dir}")
+else:
+    logger.warning(
+        f"Static directory {static_dir} not found, skipping static file mounting")
 
 # Include routers
 app.include_router(dashboard.router)  # Dashboard first (includes root route)
