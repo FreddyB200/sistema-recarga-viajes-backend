@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SITP Routes and Stations Visualizer</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            background-color: #f4f4f4;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1, h2, h3 {
+            color: #005a9c; /* Un color azul TransMilenio aproximado */
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        select, input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button {
+            display: block;
+            width: 100%;
+            padding: 10px 15px;
+            background-color: #ffd700; /* Un color amarillo TransMilenio aproximado */
+            color: #333;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        button:hover {
+            background-color: #f0c800;
+        }
+
+        .nav-button {
+            background-color: #005a9c;
+            color: white;
+            margin-bottom: 20px;
+            padding: 12px 20px;
+            text-decoration: none;
+            border-radius: 4px;
+            display: inline-block;
+            font-weight: bold;
+        }
+
+        .nav-button:hover {
+            background-color: #004080;
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        li {
+            background-color: #e9ecef;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        li:last-child {
+            border-bottom: none;
+        }
+
+        li strong {
+            color: #005a9c;
+        }
+
+        #route-details-container, #station-details-container {
+            margin-top: 15px;
+        }
+        .note {
+            font-size: 0.9em;
+            color: #555;
+            text-align: center;
+            margin-top: 30px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border: 1px dashed #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/dashboard" class="nav-button">← Back to Dashboard</a>
+        
+        <h1>SITP Routes and Stations Visualizer (Simulated)</h1>
+
+        <div class="section">
+            <h2>Explore Routes</h2>
+            <label for="route-select">Select a Route:</label>
+            <select id="route-select">
+                <option value="">Loading routes...</option>
+            </select>
+            <button id="fetch-route-details">View Route Stations</button>
+            <div id="route-details-container">
+                <h3 id="route-info-heading" style="display:none;"></h3>
+                <ul id="station-list"></ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Explore Stations</h2>
+            <label for="station-select">Select a Station:</label>
+            <select id="station-select">
+                <option value="">Loading stations...</option>
+            </select>
+            <button id="fetch-station-details">View Station Routes</button>
+            <div id="station-details-container">
+                <h3 id="station-info-heading" style="display:none;"></h3>
+                <ul id="route-list-for-station"></ul>
+            </div>
+        </div>
+         <p class="note">Note: Routes and stations information is based on synthetically generated data for simulation purposes.</p>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const apiBaseUrl = '/api/v1'; // Ajusta si tu API corre en otro puerto/host
+
+            const routeSelect = document.getElementById('route-select');
+            const stationSelect = document.getElementById('station-select');
+            const fetchRouteDetailsButton = document.getElementById('fetch-route-details');
+            const stationListUl = document.getElementById('station-list');
+            const routeInfoHeading = document.getElementById('route-info-heading');
+
+            const fetchStationDetailsButton = document.getElementById('fetch-station-details');
+            const routeListForStationUl = document.getElementById('route-list-for-station');
+            const stationInfoHeading = document.getElementById('station-info-heading');
+
+            // Cargar selectores
+            async function loadRouteCodes() {
+                try {
+                    const response = await fetch(`${apiBaseUrl}/routes/codes`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const data = await response.json();
+                    
+                    routeSelect.innerHTML = '<option value="">Select a route</option>'; // Clear placeholder
+                    data.route_codes.forEach(code => {
+                        const option = document.createElement('option');
+                        option.value = code;
+                        option.textContent = code;
+                        routeSelect.appendChild(option);
+                    });
+                } catch (error) {
+                    console.error('Error loading route codes:', error);
+                    routeSelect.innerHTML = '<option value="">Error loading routes</option>';
+                }
+            }
+
+            async function loadStationIdentifiers() {
+                try {
+                    const response = await fetch(`${apiBaseUrl}/stations/identifiers`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const data = await response.json();
+
+                    stationSelect.innerHTML = '<option value="">Select a station</option>'; // Clear placeholder
+                    data.stations.forEach(station => {
+                        const option = document.createElement('option');
+                        option.value = station.code; // Usamos el código como valor
+                        option.textContent = `${station.name} (${station.code})`;
+                        stationSelect.appendChild(option);
+                    });
+                } catch (error) {
+                    console.error('Error loading station identifiers:', error);
+                    stationSelect.innerHTML = '<option value="">Error loading stations</option>';
+                }
+            }
+
+            // Event Listener para detalles de ruta
+            fetchRouteDetailsButton.addEventListener('click', async () => {
+                const routeCode = routeSelect.value;
+                if (!routeCode) {
+                    alert('Please select a route.');
+                    return;
+                }
+
+                stationListUl.innerHTML = '<li>Loading stations...</li>';
+                routeInfoHeading.textContent = '';
+                routeInfoHeading.style.display = 'none';
+
+                try {
+                    const response = await fetch(`${apiBaseUrl}/routes/${routeCode}/details`);
+                    if (!response.ok) {
+                         const errorData = await response.json();
+                         throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.detail || 'Error desconocido'}`);
+                    }
+                    const data = await response.json();
+
+                    routeInfoHeading.textContent = `Route: ${data.route_code} (${data.route_name || ''}) - Type: ${data.route_type}`;
+                    routeInfoHeading.style.display = 'block';
+                    stationListUl.innerHTML = ''; // Clear
+
+                    if (data.stations && data.stations.length > 0) {
+                        data.stations.forEach(station => {
+                            const li = document.createElement('li');
+                            li.innerHTML = `<strong>Seq:</strong> ${station.sequence} - <strong>${station.station_name}</strong> (${station.station_code}) - <em>Type: ${station.station_type}</em>`;
+                            stationListUl.appendChild(li);
+                        });
+                    } else {
+                        stationListUl.innerHTML = '<li>No stations found for this route.</li>';
+                    }
+                } catch (error) {
+                    console.error('Error getting route details:', error);
+                    stationListUl.innerHTML = `<li>Error loading stations: ${error.message}</li>`;
+                     routeInfoHeading.textContent = `Error loading details for ${routeCode}`;
+                    routeInfoHeading.style.display = 'block';
+                }
+            });
+
+            // Event Listener para detalles de estación
+            fetchStationDetailsButton.addEventListener('click', async () => {
+                const stationCode = stationSelect.value;
+                if (!stationCode) {
+                    alert('Please select a station.');
+                    return;
+                }
+
+                routeListForStationUl.innerHTML = '<li>Loading routes...</li>';
+                stationInfoHeading.textContent = '';
+                stationInfoHeading.style.display = 'none';
+
+                try {
+                    const response = await fetch(`${apiBaseUrl}/stations/${stationCode}/details`);
+                     if (!response.ok) {
+                         const errorData = await response.json();
+                         throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.detail || 'Error desconocido'}`);
+                    }
+                    const data = await response.json();
+
+                    stationInfoHeading.textContent = `Station: ${data.station_name} (${data.station_code}) - Type: ${data.station_type}`;
+                    stationInfoHeading.style.display = 'block';
+                    routeListForStationUl.innerHTML = ''; // Clear
+
+                    if (data.routes_serving && data.routes_serving.length > 0) {
+                        data.routes_serving.forEach(route => {
+                            const li = document.createElement('li');
+                            li.innerHTML = `<strong>Route: ${route.route_code}</strong> (${route.route_name || ''}) - <em>Type: ${route.route_type}</em>`;
+                            routeListForStationUl.appendChild(li);
+                        });
+                    } else {
+                        routeListForStationUl.innerHTML = '<li>No routes found for this station.</li>';
+                    }
+                } catch (error) {
+                    console.error('Error getting station details:', error);
+                    routeListForStationUl.innerHTML = `<li>Error loading routes: ${error.message}</li>`;
+                    stationInfoHeading.textContent = `Error loading details for ${stationCode}`;
+                    stationInfoHeading.style.display = 'block';
+                }
+            });
+
+
+            // Cargar inicial de los selectores
+            loadRouteCodes();
+            loadStationIdentifiers();
+        });
+    </script>
+</body>
+</html> 

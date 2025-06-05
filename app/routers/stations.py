@@ -323,3 +323,183 @@ def get_station_alerts(
         ]
 
         return {"alerts": alerts}
+
+
+@router.get("/identifiers")
+def get_station_identifiers(
+    db: Session = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis_client)
+):
+    """
+    Get all station identifiers (code and name) for selectors
+    """
+    cache_key = "stations:identifiers"
+
+    try:
+        # Try to get from cache
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return json.loads(cached_data)
+
+        # Get all stations
+        query = text("""
+            SELECT station_code, name
+            FROM stations
+            WHERE station_code IS NOT NULL
+            AND is_active = true
+            ORDER BY name ASC
+        """)
+        
+        results = db.execute(query).fetchall()
+
+        stations = [
+            {
+                "code": r.station_code,
+                "name": r.name
+            }
+            for r in results
+        ]
+
+        response = {"stations": stations}
+
+        # Cache the result for 5 minutes
+        redis_client.setex(cache_key, 300, json.dumps(response))
+
+        return response
+
+    except redis.exceptions.RedisError as e:
+        # If Redis fails, just serve from database
+        query = text("""
+            SELECT station_code, name
+            FROM stations
+            WHERE station_code IS NOT NULL
+            AND is_active = true
+            ORDER BY name ASC
+        """)
+        
+        results = db.execute(query).fetchall()
+
+        stations = [
+            {
+                "code": r.station_code,
+                "name": r.name
+            }
+            for r in results
+        ]
+
+        return {"stations": stations}
+
+
+@router.get("/{station_code}/details")
+def get_station_details(
+    station_code: str,
+    db: Session = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis_client)
+):
+    """
+    Get station details including routes that serve it
+    """
+    cache_key = f"station:{station_code}:details"
+
+    try:
+        # Try to get from cache
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return json.loads(cached_data)
+
+        # Get station details
+        station_query = text("""
+            SELECT station_code, name, station_type, address, latitude, longitude
+            FROM stations
+            WHERE station_code = :station_code
+            AND is_active = true
+        """)
+        
+        station = db.execute(station_query, {"station_code": station_code}).first()
+
+        if not station:
+            raise HTTPException(status_code=404, detail="Station not found")
+
+        # Get routes serving this station
+        routes_query = text("""
+            SELECT r.route_code, r.route_name, r.route_type
+            FROM intermediate_stations ist
+            JOIN routes r ON ist.route_id = r.route_id
+            WHERE ist.station_id = (SELECT station_id FROM stations WHERE station_code = :station_code)
+            AND r.is_active = true
+            ORDER BY r.route_code ASC
+        """)
+        
+        routes_results = db.execute(routes_query, {"station_code": station_code}).fetchall()
+
+        routes_serving = [
+            {
+                "route_code": r.route_code,
+                "route_name": r.route_name or "",
+                "route_type": r.route_type
+            }
+            for r in routes_results
+        ]
+
+        response = {
+            "station_code": station.station_code,
+            "station_name": station.name,
+            "station_type": station.station_type,
+            "address": station.address or "",
+            "latitude": float(station.latitude) if station.latitude else None,
+            "longitude": float(station.longitude) if station.longitude else None,
+            "routes_serving": routes_serving
+        }
+
+        # Cache the result for 5 minutes
+        redis_client.setex(cache_key, 300, json.dumps(response))
+
+        return response
+
+    except redis.exceptions.RedisError as e:
+        # If Redis fails, just serve from database
+        # Get station details
+        station_query = text("""
+            SELECT station_code, name, station_type, address, latitude, longitude
+            FROM stations
+            WHERE station_code = :station_code
+            AND is_active = true
+        """)
+        
+        station = db.execute(station_query, {"station_code": station_code}).first()
+
+        if not station:
+            raise HTTPException(status_code=404, detail="Station not found")
+
+        # Get routes serving this station
+        routes_query = text("""
+            SELECT r.route_code, r.route_name, r.route_type
+            FROM intermediate_stations ist
+            JOIN routes r ON ist.route_id = r.route_id
+            WHERE ist.station_id = (SELECT station_id FROM stations WHERE station_code = :station_code)
+            AND r.is_active = true
+            ORDER BY r.route_code ASC
+        """)
+        
+        routes_results = db.execute(routes_query, {"station_code": station_code}).fetchall()
+
+        routes_serving = [
+            {
+                "route_code": r.route_code,
+                "route_name": r.route_name or "",
+                "route_type": r.route_type
+            }
+            for r in routes_results
+        ]
+
+        response = {
+            "station_code": station.station_code,
+            "station_name": station.name,
+            "station_type": station.station_type,
+            "address": station.address or "",
+            "latitude": float(station.latitude) if station.latitude else None,
+            "longitude": float(station.longitude) if station.longitude else None,
+            "routes_serving": routes_serving
+        }
+
+        return response

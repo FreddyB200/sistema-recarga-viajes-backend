@@ -363,6 +363,8 @@
                 <button class="btn primary" onclick="refreshData()">🔄 Refresh Now</button>
                 <button class="btn" onclick="toggleAutoRefresh()" id="toggleBtn">⏸️ Pause</button>
                 <button class="btn" onclick="exportData()">📊 Export Data</button>
+                <button class="btn" onclick="window.open('/routes', '_blank')">🗺️ View Routes</button>
+                <button class="btn" onclick="window.open('/cache', '_blank')">🚀 Cache Monitor</button>
             </div>
         </div>
         
@@ -401,6 +403,8 @@
                     <div class="form-group">
                         <label>Card ID:</label>
                         <input type="number" id="tripCardId" value="1" min="1">
+                        <label>Route ID:</label>
+                        <input type="number" id="tripRouteId" value="1" min="1">
                         <label>Station ID:</label>
                         <input type="number" id="boardingStation" value="101" min="100" max="999">
                         <button class="btn primary" onclick="createTrip()">Start Trip</button>
@@ -417,7 +421,7 @@
                         <button class="btn primary" onclick="rechargeCard()">Recharge</button>
                     </div>
                 </div>
-                
+
                 <div class="control-section">
                     <h4>🎲 Quick Simulations</h4>
                     <div class="simulation-controls">
@@ -590,26 +594,49 @@
         }
         
         async function createTrip() {
-            const cardId = document.getElementById('tripCardId').value;
-            const stationId = document.getElementById('boardingStation').value;
+            const cardId = parseInt(document.getElementById('tripCardId').value);
+            const routeId = parseInt(document.getElementById('tripRouteId').value);
+            const boardingStationId = parseInt(document.getElementById('boardingStation').value);
             const messagesDiv = document.getElementById('actionMessages');
             
             try {
+                // First verify card balance and status
+                const cardResponse = await fetch(`/api/v1/cards/${cardId}/balance`);
+                if (!cardResponse.ok) {
+                    throw new Error('Card not found or inactive');
+                }
+                const cardData = await cardResponse.json();
+                
+                if (cardData.status !== 'active') {
+                    throw new Error('Card is not active');
+                }
+                
+                if (parseFloat(cardData.balance) < 2950) { // Minimum fare amount
+                    throw new Error('Insufficient balance');
+                }
+                
+                // Start the trip
                 const response = await fetch('/api/v1/trips/start', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        card_id: parseInt(cardId),
-                        station_id: parseInt(stationId)
+                        card_id: cardId,
+                        route_id: routeId,
+                        boarding_station_id: boardingStationId
                     })
                 });
                 
                 if (response.ok) {
                     const result = await response.json();
-                    messagesDiv.innerHTML = `<div class="success-message">✅ Trip started! Trip ID: ${result.trip_id || 'N/A'}</div>`;
-                    addAlert(`Trip started for Card ${cardId} at Station ${stationId}`, 'success');
+                    messagesDiv.innerHTML = `<div class="success-message">
+                        ✅ Trip started successfully!<br>
+                        Trip ID: ${result.trip_id || 'N/A'}<br>
+                        Route: ${result.route_id || routeId}<br>
+                        Station: ${result.boarding_station_id || boardingStationId}<br>
+                        Remaining Balance: $${(result.remaining_balance || cardData.balance).toLocaleString()}</div>`;
+                    addAlert(`Trip started: Card ${cardId}, Route ${routeId}, Station ${boardingStationId}`, 'success');
                     
                     // Refresh data after 1 second
                     setTimeout(refreshData, 1000);
@@ -620,8 +647,8 @@
                     addAlert(`Failed to create trip: ${errorMsg}`, 'error');
                 }
             } catch (error) {
-                messagesDiv.innerHTML = `<div class="error-message">❌ Network Error: ${error.message}</div>`;
-                addAlert(`Network error creating trip: ${error.message}`, 'error');
+                messagesDiv.innerHTML = `<div class="error-message">❌ Error: ${error.message}</div>`;
+                addAlert(`Failed to create trip: ${error.message}`, 'error');
             }
         }
         
@@ -663,73 +690,150 @@
         
         async function simulateRushHour() {
             addAlert('🏃‍♂️ Simulating rush hour with multiple trips...', 'info');
+            const messagesDiv = document.getElementById('actionMessages');
+            messagesDiv.innerHTML = '<div class="info-message">🚌 Initiating rush hour simulation...</div>';
+            
+            // Define common routes and stations for rush hour
+            const rushHourRoutes = [
+                { routeId: 1, stations: [101, 102, 103] },
+                { routeId: 2, stations: [201, 202, 203] },
+                { routeId: 3, stations: [301, 302, 303] }
+            ];
             
             // Create 5 trips with different cards and stations
             for (let i = 0; i < 5; i++) {
                 setTimeout(async () => {
                     const cardId = Math.floor(Math.random() * 10) + 1;
-                    const stationId = Math.floor(Math.random() * 50) + 101;
+                    const routeConfig = rushHourRoutes[Math.floor(Math.random() * rushHourRoutes.length)];
+                    const stationId = routeConfig.stations[Math.floor(Math.random() * routeConfig.stations.length)];
                     
                     try {
+                        // Verify card status first
+                        const cardResponse = await fetch(`/api/v1/cards/${cardId}/balance`);
+                        if (!cardResponse.ok) {
+                            throw new Error(`Invalid card ${cardId}`);
+                        }
+                        const cardData = await cardResponse.json();
+                        
+                        if (cardData.status !== 'active' || parseFloat(cardData.balance) < 2950) {
+                            addAlert(`Skipping card ${cardId} - insufficient balance or inactive`, 'warning');
+                            return;
+                        }
+                        
                         const response = await fetch('/api/v1/trips/start', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 card_id: cardId,
-                                station_id: stationId
+                                route_id: routeConfig.routeId,
+                                boarding_station_id: stationId
                             })
                         });
                         
                         if (response.ok) {
-                            addAlert(`Rush hour trip: Card ${cardId} at Station ${stationId}`, 'success');
+                            const result = await response.json();
+                            addAlert(`Rush hour trip created: Card ${cardId}, Route ${routeConfig.routeId}, Station ${stationId}`, 'success');
                         } else {
                             const error = await response.json();
-                            const errorMsg = typeof error.detail === 'string' ? error.detail : 'Failed to create trip';
-                            addAlert(`Rush hour trip failed: ${errorMsg}`, 'error');
+                            addAlert(`Rush hour trip failed: ${error.detail || 'Unknown error'}`, 'error');
                         }
                     } catch (error) {
-                        addAlert(`Rush hour trip failed: ${error.message}`, 'error');
+                        addAlert(`Rush hour trip error: ${error.message}`, 'error');
                     }
                 }, i * 1000);
             }
             
-            setTimeout(refreshData, 6000);
+            setTimeout(() => {
+                messagesDiv.innerHTML = '<div class="success-message">✅ Rush hour simulation completed</div>';
+                refreshData();
+            }, 6000);
         }
         
         async function simulateMultipleTrips() {
-            addAlert('🚌 Creating multiple trips...', 'info');
+            addAlert('🚌 Creating multiple trips with route validation...', 'info');
+            const messagesDiv = document.getElementById('actionMessages');
+            messagesDiv.innerHTML = '<div class="info-message">🚌 Starting multiple trips simulation...</div>';
             
+            // Create trips on sequential routes
             for (let i = 0; i < 3; i++) {
                 setTimeout(async () => {
+                    const cardId = i + 1;
+                    const routeId = i + 1;
+                    const stationId = 101 + i;
+                    
                     try {
+                        // Verify card first
+                        const cardResponse = await fetch(`/api/v1/cards/${cardId}/balance`);
+                        if (!cardResponse.ok) {
+                            throw new Error(`Invalid card ${cardId}`);
+                        }
+                        const cardData = await cardResponse.json();
+                        
+                        if (cardData.status !== 'active') {
+                            addAlert(`Card ${cardId} is not active, skipping`, 'warning');
+                            return;
+                        }
+                        
+                        if (parseFloat(cardData.balance) < 2950) {
+                            // Auto recharge if balance is low
+                            await fetch('/api/v1/cards/recharge', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    card_id: cardId,
+                                    amount: 10000
+                                })
+                            });
+                            addAlert(`Auto-recharged card ${cardId} with $10,000`, 'info');
+                        }
+                        
                         const response = await fetch('/api/v1/trips/start', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                card_id: i + 1,
-                                station_id: 101 + i
+                                card_id: cardId,
+                                route_id: routeId,
+                                boarding_station_id: stationId
                             })
                         });
                         
                         if (response.ok) {
-                            addAlert(`Multi trip created: Card ${i + 1} at Station ${101 + i}`, 'success');
+                            const result = await response.json();
+                            addAlert(`Multi trip created: Card ${cardId}, Route ${routeId}, Station ${stationId}`, 'success');
+                        } else {
+                            const error = await response.json();
+                            addAlert(`Trip creation failed: ${error.detail || 'Unknown error'}`, 'error');
                         }
                     } catch (error) {
-                        console.error('Trip creation failed:', error);
+                        addAlert(`Failed to create trip: ${error.message}`, 'error');
                     }
-                }, i * 500);
+                }, i * 800);
             }
             
-            setTimeout(refreshData, 2000);
+            setTimeout(() => {
+                messagesDiv.innerHTML = '<div class="success-message">✅ Multiple trips simulation completed</div>';
+                refreshData();
+            }, 3000);
         }
         
         async function simulateRecharges() {
             addAlert('💰 Mass recharge simulation...', 'info');
+            const messagesDiv = document.getElementById('actionMessages');
+            messagesDiv.innerHTML = '<div class="info-message">💰 Starting mass recharge simulation...</div>';
+            
+            const rechargeAmounts = [5000, 10000, 15000];
+            let successCount = 0;
             
             for (let i = 1; i <= 3; i++) {
                 setTimeout(async () => {
-                    const amount = 5000 + (i * 1000);
+                    const amount = rechargeAmounts[i - 1];
                     try {
+                        // Verify card exists first
+                        const cardResponse = await fetch(`/api/v1/cards/${i}/balance`);
+                        if (!cardResponse.ok) {
+                            throw new Error(`Card ${i} not found`);
+                        }
+                        
                         const response = await fetch('/api/v1/cards/recharge', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -740,11 +844,12 @@
                         });
                         
                         if (response.ok) {
-                            addAlert(`Card ${i} recharged with $${amount}`, 'success');
+                            const result = await response.json();
+                            successCount++;
+                            addAlert(`Card ${i} recharged with $${amount.toLocaleString()} - New balance: $${result.new_balance.toLocaleString()}`, 'success');
                         } else {
                             const error = await response.json();
-                            const errorMsg = typeof error.detail === 'string' ? error.detail : 'Recharge failed';
-                            addAlert(`Recharge failed for card ${i}: ${errorMsg}`, 'error');
+                            addAlert(`Recharge failed for card ${i}: ${error.detail || 'Unknown error'}`, 'error');
                         }
                     } catch (error) {
                         addAlert(`Recharge failed for card ${i}: ${error.message}`, 'error');
@@ -752,7 +857,10 @@
                 }, i * 800);
             }
             
-            setTimeout(refreshData, 3000);
+            setTimeout(() => {
+                messagesDiv.innerHTML = `<div class="success-message">✅ Mass recharge simulation completed<br>Successfully recharged ${successCount} cards</div>`;
+                refreshData();
+            }, 3000);
         }
         
         function resetDemo() {
@@ -840,26 +948,62 @@
                 
                 if (tripsResponse.ok) {
                     const tripsData = await tripsResponse.json();
-                    document.getElementById('totalTrips').textContent = 
-                        tripsData.total_trips?.toLocaleString() || '0';
+                    const totalTrips = tripsData.total_trips || 0;
+                    // Format large numbers better
+                    let formattedTrips;
+                    if (totalTrips >= 1000000) {
+                        formattedTrips = (totalTrips / 1000000).toFixed(1) + 'M';
+                    } else if (totalTrips >= 1000) {
+                        formattedTrips = (totalTrips / 1000).toFixed(1) + 'K';
+                    } else {
+                        formattedTrips = totalTrips.toString();
+                    }
+                    document.getElementById('totalTrips').textContent = formattedTrips;
                 }
                 
                 if (usersResponse.ok) {
                     const usersData = await usersResponse.json();
-                    document.getElementById('activeUsers').textContent = 
-                        usersData.active_users_count?.toLocaleString() || '0';
+                    const activeUsers = usersData.active_users_count || 0;
+                    // Format large numbers better
+                    let formattedActiveUsers;
+                    if (activeUsers >= 1000000) {
+                        formattedActiveUsers = (activeUsers / 1000000).toFixed(1) + 'M';
+                    } else if (activeUsers >= 1000) {
+                        formattedActiveUsers = (activeUsers / 1000).toFixed(1) + 'K';
+                    } else {
+                        formattedActiveUsers = activeUsers.toString();
+                    }
+                    document.getElementById('activeUsers').textContent = formattedActiveUsers;
                 }
                 
                 if (revenueResponse.ok) {
                     const revenueData = await revenueResponse.json();
-                    document.getElementById('totalRevenue').textContent = 
-                        '$' + (revenueData.total_revenue?.toLocaleString() || '0.00');
+                    const revenue = revenueData.total_revenue || 0;
+                    // Format large numbers better
+                    let formattedRevenue;
+                    if (revenue >= 1000000) {
+                        formattedRevenue = '$' + (revenue / 1000000).toFixed(1) + 'M';
+                    } else if (revenue >= 1000) {
+                        formattedRevenue = '$' + (revenue / 1000).toFixed(1) + 'K';
+                    } else {
+                        formattedRevenue = '$' + revenue.toLocaleString();
+                    }
+                    document.getElementById('totalRevenue').textContent = formattedRevenue;
                 }
                 
                 if (totalUsersResponse.ok) {
                     const totalUsersData = await totalUsersResponse.json();
-                    document.getElementById('totalUsers').textContent = 
-                        totalUsersData.total_users?.toLocaleString() || '0';
+                    const totalUsers = totalUsersData.total_users || 0;
+                    // Format large numbers better
+                    let formattedUsers;
+                    if (totalUsers >= 1000000) {
+                        formattedUsers = (totalUsers / 1000000).toFixed(1) + 'M';
+                    } else if (totalUsers >= 1000) {
+                        formattedUsers = (totalUsers / 1000).toFixed(1) + 'K';
+                    } else {
+                        formattedUsers = totalUsers.toString();
+                    }
+                    document.getElementById('totalUsers').textContent = formattedUsers;
                 }
                 
             } catch (error) {
@@ -870,10 +1014,12 @@
         async function fetchEndpointLatencies() {
             const endpoints = [
                 '/api/v1/trips/total',
+                '/api/v1/trips/total/localities',
+                '/api/v1/cards/1/balance',  // Sample card balance check
+                '/api/v1/cards/1/history',  // Sample card history check
                 '/api/v1/finance/revenue',
-                '/api/v1/users/active/count',
-                '/api/v1/users/count',
-                '/api/v1/stations',
+                '/api/v1/routes/codes',  // New route codes endpoint
+                '/api/v1/stations/identifiers',  // New stations identifiers endpoint
                 '/api/v1/health',
                 '/api/v1/health/db',
                 '/api/v1/health/cache'
@@ -891,30 +1037,39 @@
                     const endTime = performance.now();
                     const latency = endTime - startTime;
                     
+                    // Categorize response times
+                    const responseCategory = 
+                        !response.ok ? 'error' :
+                        latency > 1000 ? 'very-slow' :
+                        latency > 500 ? 'slow' :
+                        latency > 100 ? 'medium' :
+                        'fast';
+                    
                     latencies.push({
                         endpoint,
                         latency: latency.toFixed(1),
                         status: response.ok ? 'ok' : 'error',
+                        category: responseCategory,
                         responseStatus: response.status
                     });
                 } catch (error) {
-                    // Clear API down error - check if it's a network error
                     const isNetworkError = error.message.includes('fetch') || 
-                                          error.message.includes('Failed to fetch') ||
-                                          error.message.includes('NetworkError') ||
-                                          error.name === 'TypeError';
+                                         error.message.includes('Failed to fetch') ||
+                                         error.message.includes('NetworkError') ||
+                                         error.name === 'TypeError';
                     
                     latencies.push({
                         endpoint,
                         latency: isNetworkError ? 'API DOWN' : 'ERROR',
                         status: 'error',
+                        category: 'error',
                         errorType: isNetworkError ? 'network' : 'other',
                         errorMessage: error.message
                     });
                 }
             }
             
-            // Calculate average latency only for successful requests
+            // Calculate average latency for successful requests
             const validLatencies = latencies.filter(l => 
                 typeof l.latency === 'string' && !isNaN(parseFloat(l.latency)) && l.status === 'ok'
             );
@@ -922,42 +1077,68 @@
             if (validLatencies.length > 0) {
                 const avgLatency = validLatencies.reduce((sum, l) => sum + parseFloat(l.latency), 0) / validLatencies.length;
                 document.getElementById('avgLatency').textContent = avgLatency.toFixed(1) + 'ms';
+                
+                // Add performance alert if average latency is high
+                if (avgLatency > 500) {
+                    addAlert('⚠️ High average latency detected: ' + avgLatency.toFixed(1) + 'ms', 'warning');
+                }
             } else {
                 document.getElementById('avgLatency').textContent = 'API DOWN';
             }
             
-            // Render endpoint latencies with better error handling
+            // Render endpoints with category-based styling
             endpointContainer.innerHTML = latencies.map(item => {
                 let className = 'endpoint';
                 let displayLatency = item.latency;
+                let icon = '🟢'; // Default - fast
                 
-                if (item.status === 'error') {
-                    className += ' error';
-                    // Show specific error type
-                    if (item.errorType === 'network') {
-                        displayLatency = '🚫 API DOWN';
-                    } else {
-                        displayLatency = '❌ ERROR';
-                    }
-                } else if (parseFloat(item.latency) > 50) {
-                    className += ' slow';
-                    displayLatency = item.latency + 'ms';
-                } else {
-                    displayLatency = item.latency + 'ms';
+                switch (item.category) {
+                    case 'error':
+                        className += ' error';
+                        icon = '🔴';
+                        displayLatency = item.errorType === 'network' ? '🚫 API DOWN' : '❌ ERROR';
+                        break;
+                    case 'very-slow':
+                        className += ' error';
+                        icon = '🔴';
+                        displayLatency += 'ms (very slow)';
+                        break;
+                    case 'slow':
+                        className += ' slow';
+                        icon = '🟡';
+                        displayLatency += 'ms (slow)';
+                        break;
+                    case 'medium':
+                        className += ' warning';
+                        icon = '🟡';
+                        displayLatency += 'ms';
+                        break;
+                    default:
+                        displayLatency += 'ms';
                 }
                 
                 return `
                     <div class="${className}">
-                        <div class="endpoint-path">${item.endpoint}</div>
+                        <div class="endpoint-path">${icon} ${item.endpoint}</div>
                         <div class="endpoint-latency">${displayLatency}</div>
                     </div>
                 `;
             }).join('');
             
-            // Add alert if all endpoints are down
-            const allDown = latencies.every(l => l.status === 'error' && l.errorType === 'network');
-            if (allDown) {
+            // Add comprehensive alert for API status
+            const failedEndpoints = latencies.filter(l => l.status === 'error');
+            if (failedEndpoints.length === latencies.length) {
                 addAlert('🚫 All API endpoints are down - API server may be offline', 'error');
+            } else if (failedEndpoints.length > 0) {
+                addAlert(`⚠️ ${failedEndpoints.length} endpoint(s) are reporting errors`, 'warning');
+            }
+            
+            // Alert for slow endpoints
+            const slowEndpoints = latencies.filter(l => 
+                l.status === 'ok' && (l.category === 'slow' || l.category === 'very-slow')
+            );
+            if (slowEndpoints.length > 0) {
+                addAlert(`⚠️ ${slowEndpoints.length} endpoint(s) are responding slowly`, 'warning');
             }
         }
         
@@ -1004,4 +1185,4 @@
         });
     </script>
 </body>
-</html> 
+</html>

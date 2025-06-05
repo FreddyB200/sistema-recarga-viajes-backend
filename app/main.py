@@ -6,7 +6,7 @@ from app.dependencies import get_db, get_redis_client
 import redis
 import logging
 import os
-from app.routers import users, trips, finance, cards, stations, dashboard
+from app.routers import users, trips, finance, cards, stations, dashboard, routes, cache_metrics
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +34,8 @@ app.include_router(trips.router)
 app.include_router(finance.router)
 app.include_router(cards.router)
 app.include_router(stations.router)
+app.include_router(routes.router)
+app.include_router(cache_metrics.router)
 
 # Startup event
 

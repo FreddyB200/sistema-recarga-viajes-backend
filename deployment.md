@@ -160,7 +160,66 @@ This assumes you are using the `travel-recharge-database` repository to run Post
 
 ---
 
-## 8. Troubleshooting Distributed Setup
+## 8. Load Testing with Locust
+
+After deploying your distributed API, you can test its performance under load using Locust to simulate thousands of concurrent users:
+
+### 8.1 Install Locust
+
+On any machine that can reach your API VM:
+
+```bash
+# Install Locust
+pip install locust
+
+# Clone the API repository (if not already available)
+git clone https://github.com/FreddyB200/travel-recharge-api.git
+cd travel-recharge-api
+```
+
+### 8.2 Run Load Tests
+
+```bash
+# Run Locust tests against your distributed API
+locust -f scripts/locustfile.py --host=http://API_VM_IP:8000
+
+# Example with custom user count and spawn rate
+locust -f scripts/locustfile.py --host=http://API_VM_IP:8000 --users 1000 --spawn-rate 10
+```
+
+### 8.3 Monitor Performance
+
+1. **Locust Web Interface**: Open http://localhost:8089 to configure and monitor the load test
+2. **API Dashboard**: Access http://API_VM_IP:8000/dashboard to see real-time system metrics
+3. **Cache Monitor**: View http://API_VM_IP:8000/cache to observe Redis performance benefits
+
+### 8.4 Realistic Test Scenarios
+
+The Locust configuration simulates four types of users:
+
+- **Mobile App Users (55%)**: Frequent balance checks, route searches
+- **Regular System Users (28%)**: Trip operations, recharges, system queries
+- **Data Analysts (11%)**: Statistical queries, revenue analysis
+- **Admin Users (6%)**: Cache monitoring, performance testing
+
+### 8.5 Performance Validation
+
+Use the load tests to validate:
+- **Cache Effectiveness**: Compare response times with/without Redis
+- **System Scalability**: Test with 100, 1000, 5000+ concurrent users
+- **Network Performance**: Measure latency across distributed VMs
+- **Resource Utilization**: Monitor CPU, memory, network on each VM
+
+### 8.6 Best Practices for Distributed Testing
+
+- Run Locust from a separate machine to avoid affecting API performance
+- Monitor each VM's resources during testing (htop, iostat, etc.)
+- Test cache warming: Run a small load test first, then increase users
+- Use different test durations to simulate various load patterns
+
+---
+
+## 9. Troubleshooting Distributed Setup
 
 *   **Connection Refused/Timeout:**
     *   Verify VM network connectivity (ping between VMs).

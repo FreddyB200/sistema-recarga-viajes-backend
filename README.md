@@ -241,9 +241,9 @@ open http://localhost:8000/docs
 
 | Method | Endpoint | Description | Status | Cached |
 |--------|----------|-------------|--------|--------|
-| `GET` | `/api/v1/users/count` | Get total user count | ✅ | ❌ |
+| `GET` | `/api/v1/users/count` | Get total user count | ✅ | ✅ (300s) |
 | `GET` | `/api/v1/users/active/count` | Get active user count | ✅ | ✅ (60s) |
-| `GET` | `/api/v1/users/latest` | Get latest registered user | ✅ | ❌ |
+| `GET` | `/api/v1/users/latest` | Get latest registered user | ✅ | ✅ (120s) |
 
 </details>
 
@@ -293,6 +293,32 @@ open http://localhost:8000/docs
 </details>
 
 <details>
+<summary><strong>🗺️ Routes & Stations</strong></summary>
+
+| Method | Endpoint | Description | Status | Cached |
+|--------|----------|-------------|--------|--------|
+| `GET` | `/api/v1/routes/codes` | Get all route codes | ✅ | ✅ (300s) |
+| `GET` | `/api/v1/routes/{route_code}/details` | Get route details with stations | ✅ | ✅ (300s) |
+| `GET` | `/api/v1/stations/identifiers` | Get all station identifiers | ✅ | ✅ (300s) |
+| `GET` | `/api/v1/stations/{station_code}/details` | Get station details with routes | ✅ | ✅ (300s) |
+
+</details>
+
+<details>
+<summary><strong>🚀 Cache Performance</strong></summary>
+
+| Method | Endpoint | Description | Status | Cached |
+|--------|----------|-------------|--------|--------|
+| `GET` | `/api/v1/cache/stats` | Get Redis cache statistics | ✅ | ❌ |
+| `GET` | `/api/v1/cache/keys` | Get information about cached keys | ✅ | ❌ |
+| `GET` | `/api/v1/cache/health` | Check cache health and connectivity | ✅ | ❌ |
+| `GET` | `/api/v1/cache/performance-test` | Run performance comparison test | ✅ | ❌ |
+| `POST` | `/api/v1/cache/clear` | Clear all cache entries | ✅ | ❌ |
+| `DELETE` | `/api/v1/cache/key/{key_name}` | Delete specific cache key | ✅ | ❌ |
+
+</details>
+
+<details>
 <summary><strong>❤️ Health Checks</strong></summary>
 
 | Method | Endpoint | Description | Status | Cached |
@@ -305,10 +331,13 @@ open http://localhost:8000/docs
 
 **Legend**: ✅ Implemented | 🚧 In Progress | ❌ Not Started
 
-### Interactive Documentation
+### Interactive Documentation & Dashboards
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 - **OpenAPI Schema**: http://localhost:8000/openapi.json
+- **Main Dashboard**: http://localhost:8000/dashboard
+- **Routes Visualizer**: http://localhost:8000/routes
+- **Cache Performance Monitor**: http://localhost:8000/cache
 
 ## 🧪 Testing
 
@@ -335,15 +364,55 @@ python scripts/latency_non_cacheable.py
 - **Cache**: Mock Redis client (no external dependencies)
 - **API Client**: FastAPI TestClient (fast integration testing)
 
+### Load Testing with Locust
+```bash
+# Install Locust
+pip install locust
+
+# Run load tests (simulates thousands of concurrent users)
+locust -f scripts/locustfile.py --host=http://localhost:8000
+
+# Open web interface at http://localhost:8089
+# Configure number of users and spawn rate
+# Monitor real-time performance in dashboard
+```
+
+The Locust tests simulate realistic user behavior including:
+- **Mobile App Users (55%)**: Frequent balance checks, route searches
+- **Regular System Users (28%)**: Trip operations, recharges, system queries  
+- **Data Analysts (11%)**: Statistical queries, revenue analysis
+- **Admin Users (6%)**: Cache monitoring, performance testing
+
+Real-time results are visible in the main dashboard showing:
+- Response time improvements with Redis cache
+- System performance under load
+- Cache hit rates and effectiveness
+- Distributed system latency across VMs
+
 ## 📈 Monitoring
 
-### Current Health Checks
+### Current Monitoring Features
 ```bash
-# Basic health endpoints
+# Health check endpoints
 curl http://localhost:8000/api/v1/health        # System status
 curl http://localhost:8000/api/v1/health/db     # Database connectivity  
 curl http://localhost:8000/api/v1/health/cache  # Redis connectivity
+
+# Cache performance monitoring
+curl http://localhost:8000/api/v1/cache/stats   # Redis statistics
+curl http://localhost:8000/api/v1/cache/health  # Cache health check
 ```
+
+### Web-Based Dashboards
+- **📊 Main Dashboard** (`/dashboard`): Real-time system metrics, trip simulation controls
+- **🗺️ Routes Visualizer** (`/routes`): Interactive route and station explorer
+- **🚀 Cache Monitor** (`/cache`): Redis performance metrics and cache management
+
+Key features:
+- **Real-time metrics**: Live updates every 10 seconds
+- **Performance testing**: Compare database vs cache response times
+- **Cache management**: View, clear, and delete individual cache keys
+- **Load simulation**: Built-in tools for generating test traffic
 
 ## 📋 Roadmap & TODO
 

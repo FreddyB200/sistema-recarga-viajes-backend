@@ -11,6 +11,9 @@ __pycache__/
 venv/
 .env/
 env/
+database/*
+
+!database/init.sql
 
 # Docker
 *.log

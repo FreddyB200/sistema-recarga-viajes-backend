@@ -22,3 +22,19 @@ async def root_redirect(request: Request):
     Redirect root to dashboard
     """
     return templates.TemplateResponse("dashboard.html", {"request": request})
+
+
+@router.get("/routes", response_class=HTMLResponse)
+async def routes_visualization(request: Request):
+    """
+    Serve the routes and stations visualization page
+    """
+    return templates.TemplateResponse("routes_visualization.html", {"request": request})
+
+
+@router.get("/cache", response_class=HTMLResponse)
+async def cache_monitor(request: Request):
+    """
+    Serve the cache performance monitoring page
+    """
+    return templates.TemplateResponse("cache_monitor.html", {"request": request})
